@@ -60,7 +60,7 @@ function triggerValidation() {
     } finally {
       isValidating.value = false
     }
-  }, 750)
+  }, 2500)
 }
 
 watch(form, triggerValidation, { deep: true })

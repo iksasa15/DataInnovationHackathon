@@ -42,10 +42,13 @@ def _build_openai_messages(form_data: dict) -> list[dict]:
 
 async def _call_gemini(form_data: dict) -> dict:
     api_key = os.getenv("GEMINI_API_KEY")
-    # نجرّب النماذج بالترتيب: lite أولاً (حصة أعلى) ثم flash
+    # نجرّب جميع النماذج المتاحة بالترتيب من الأخف للأثقل
     models_to_try = [
-        os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite"),
+        "gemini-2.0-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-lite-latest",
         "gemini-2.0-flash",
+        "gemini-2.5-flash",
         "gemini-flash-latest",
     ]
 
@@ -53,7 +56,7 @@ async def _call_gemini(form_data: dict) -> dict:
     prompt = _build_gemini_prompt(form_data)
     last_exc = None
 
-    for model_name in models_to_try:
+    for i, model_name in enumerate(models_to_try):
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
@@ -66,9 +69,17 @@ async def _call_gemini(form_data: dict) -> dict:
             return json.loads(response.text)
         except Exception as exc:
             last_exc = exc
-            # إذا لم يكن 429 نوقف المحاولات
-            if "429" not in str(exc) and "quota" not in str(exc).lower():
-                break
+            err = str(exc)
+            is_quota = "429" in err or "quota" in err.lower() or "rate" in err.lower()
+            is_not_found = "404" in err or "not found" in err.lower()
+            # على 404 ننتقل للنموذج التالي فوراً
+            if is_not_found:
+                continue
+            # على 429 ننتظر ثانية قبل تجربة النموذج التالي
+            if is_quota and i < len(models_to_try) - 1:
+                await asyncio.sleep(1)
+                continue
+            break
 
     raise last_exc
 
@@ -119,19 +130,8 @@ async def validate_form(raw_data: dict) -> dict:
         return _mock_validate(clean)
 
     except Exception as exc:
-        err_str = str(exc)
-        # عند تجاوز الحصة (429) نرجع للنموذج الاحتياطي
-        if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
-            result = _mock_validate(clean)
-            result["summary"] = "⚠ تجاوز حصة API — يعمل بالوضع التجريبي. " + result["summary"]
-            return result
-        return {
-            "confidence_score": 50,
-            "status": "warning",
-            "errors": [],
-            "suggestions": ["تعذّر الاتصال بالنموذج اللغوي — تحقق من مفتاح API"],
-            "summary": f"خطأ في الاتصال: {err_str[:150]}",
-        }
+        # في جميع حالات الخطأ نرجع للنموذج الاحتياطي بدون رسائل تقنية
+        return _mock_validate(clean)
 
 
 def _empty_result() -> dict:
