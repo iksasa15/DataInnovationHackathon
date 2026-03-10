@@ -178,7 +178,7 @@ import { RouterLink } from 'vue-router'
 /* Features */
 .features {
   padding: 4rem 1.5rem;
-  max-width: 64rem;
+  max-width: 80rem;
   margin: 0 auto;
 }
 

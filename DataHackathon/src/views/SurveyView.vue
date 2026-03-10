@@ -275,9 +275,9 @@ watch(health, (h) => {
 
 <style scoped>
 .survey-page {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
+  padding: 2rem 2rem 4rem;
 }
 
 /* Page header */
@@ -318,9 +318,14 @@ watch(health, (h) => {
 /* Layout */
 .survey-layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 420px;
   gap: 2rem;
   align-items: start;
+}
+@media (max-width: 1100px) {
+  .survey-layout {
+    grid-template-columns: 1fr 360px;
+  }
 }
 @media (max-width: 820px) {
   .survey-layout {
