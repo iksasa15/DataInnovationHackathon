@@ -17,7 +17,7 @@ import { RouterLink } from 'vue-router'
           انضم إلينا واصنع الفرق.
         </p>
         <div class="hero-actions">
-          <RouterLink to="/about" class="btn btn-primary">اعرف المزيد</RouterLink>
+          <RouterLink to="/survey" class="btn btn-primary">جرّب الاستبيان الآن</RouterLink>
           <a href="#features" class="btn btn-outline">المميزات</a>
         </div>
       </div>

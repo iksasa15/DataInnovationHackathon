@@ -10,6 +10,7 @@ import { RouterLink, RouterView } from 'vue-router'
       </RouterLink>
       <nav class="nav">
         <RouterLink to="/">الرئيسية</RouterLink>
+        <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
         <RouterLink to="/about">من نحن</RouterLink>
       </nav>
     </header>
@@ -81,6 +82,11 @@ import { RouterLink, RouterView } from 'vue-router'
 .nav a.router-link-active {
   color: #0e7490;
   background: rgba(6, 182, 212, 0.1);
+}
+
+.nav-highlight {
+  font-weight: 600;
+  color: #0e7490 !important;
 }
 
 .app-main {
