@@ -15,6 +15,11 @@ const router = createRouter({
       component: () => import('../views/SurveyView.vue'),
     },
     {
+      path: '/excel',
+      name: 'excel',
+      component: () => import('../views/ExcelView.vue'),
+    },
+    {
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),

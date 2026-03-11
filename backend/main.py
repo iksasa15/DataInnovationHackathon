@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
-from validator import validate_form
+from validator import validate_form, validate_form_quick
 
 load_dotenv()
 
@@ -67,6 +67,45 @@ async def health():
 async def validate(data: FormData):
     result = await validate_form(data.model_dump())
     return result
+
+
+class BatchRecord(BaseModel):
+    row_index: int
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    education: Optional[str] = None
+    job_title: Optional[str] = None
+    years_experience: Optional[int] = None
+    monthly_salary: Optional[float] = None
+    sector: Optional[str] = None
+    marital_status: Optional[str] = None
+    children_count: Optional[int] = None
+
+
+@app.post("/api/validate-batch")
+async def validate_batch(records: List[BatchRecord]):
+    results = []
+    for record in records:
+        data = record.model_dump()
+        row_index = data.pop("row_index")
+        result = validate_form_quick(data)
+        result["row_index"] = row_index
+        results.append(result)
+    total = len(results)
+    errors_count = sum(1 for r in results if r["status"] == "error")
+    warnings_count = sum(1 for r in results if r["status"] == "warning")
+    avg_confidence = round(sum(r["confidence_score"] for r in results) / total) if total else 0
+    return {
+        "results": results,
+        "stats": {
+            "total": total,
+            "errors": errors_count,
+            "warnings": warnings_count,
+            "valid": total - errors_count - warnings_count,
+            "avg_confidence": avg_confidence,
+        },
+    }
 
 
 if __name__ == "__main__":

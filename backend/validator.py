@@ -134,6 +134,14 @@ async def validate_form(raw_data: dict) -> dict:
         return _mock_validate(clean)
 
 
+def validate_form_quick(data: dict) -> dict:
+    """تحقق فوري بالقواعد — للمعالجة الدفعية بدون LLM."""
+    clean = {k: v for k, v in data.items() if v is not None and v != "" and v != 0 and k != "name"}
+    if len(clean) < 2:
+        return _empty_result()
+    return _mock_validate(clean)
+
+
 def _empty_result() -> dict:
     return {
         "confidence_score": 100,

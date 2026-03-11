@@ -49,3 +49,30 @@ export async function checkHealth(): Promise<HealthStatus> {
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }
+
+export interface BatchRecord extends FormData {
+  row_index: number
+}
+
+export interface BatchStats {
+  total: number
+  errors: number
+  warnings: number
+  valid: number
+  avg_confidence: number
+}
+
+export interface BatchResult {
+  results: (ValidationResult & { row_index: number })[]
+  stats: BatchStats
+}
+
+export async function validateBatch(records: BatchRecord[]): Promise<BatchResult> {
+  const response = await fetch(`${API_BASE}/api/validate-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(records),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
