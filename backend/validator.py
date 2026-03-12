@@ -250,51 +250,94 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
     for rec in records:
         row_index = int(rec.get("row_index", 0))
         errors = []
+        col_norms = {col: _norm_text(col) for col in columns}
 
         for col in columns:
             value = rec.get(col)
-            if value is None or value == "":
-                continue
-
-            col_norm = _norm_text(col)
+            col_norm = col_norms[col]
 
             if isinstance(value, (int, float)):
+                if value is None or (isinstance(value, float) and value != value):
+                    continue
                 if ("عمر" in col_norm or "سن" in col_norm or "age" in col_norm) and (value < 0 or value > 100):
                     errors.append(
-                        {
-                            "field": col,
-                            "message": f"القيمة ({value}) في '{col}' تبدو غير منطقية",
-                            "severity": "high",
-                        }
+                        {"field": col, "message": f"القيمة ({value}) في '{col}' غير منطقية", "severity": "high"}
                     )
                 elif value < 0:
                     errors.append(
-                        {
-                            "field": col,
-                            "message": f"القيمة ({value}) في '{col}' سالبة وغير متوقعة",
-                            "severity": "medium",
-                        }
+                        {"field": col, "message": f"القيمة ({value}) في '{col}' سالبة", "severity": "medium"}
                     )
                 elif abs(value) > 1_000_000_000:
                     errors.append(
-                        {
-                            "field": col,
-                            "message": f"القيمة في '{col}' كبيرة جداً وقد تكون خطأ إدخال",
-                            "severity": "high",
-                        }
+                        {"field": col, "message": f"القيمة في '{col}' كبيرة جداً وقد تكون خطأ", "severity": "high"}
                     )
+                continue
+
+            value_str = str(value).strip() if value is not None else ""
+            if not value_str:
+                continue
+
+            # تسميات ومتناسقها مع حقول أخرى
+            if "مؤهل" in col_norm or "تعليم" in col_norm or "شهادة" in col_norm:
+                job_col = next((c for c in columns if "مسمى" in col_norms[c] or "وظيف" in col_norms[c]), None)
+                if job_col:
+                    job = str(rec.get(job_col) or "").strip()
+                    low_edu = ["ابتدائي", "متوسط", "إعدادي", "ثانوي", "دبلوم"]
+                    if any(e in value_str for e in low_edu) and any(
+                        t in job for t in ["طبيب", "دكتور", "جراح", "طيار", "وزير", "مدير عام", "قاضي"]
+                    ):
+                        errors.append(
+                            {
+                                "field": col,
+                                "message": f"المؤهل «{value_str}» لا يتناسب مع المسمى الوظيفي «{job}»",
+                                "severity": "high",
+                            }
+                        )
+            if "مسمى" in col_norm or "وظيف" in col_norm:
+                edu_col = next((c for c in columns if "مؤهل" in col_norms[c] or "تعليم" in col_norms[c]), None)
+                if edu_col:
+                    edu = str(rec.get(edu_col) or "").strip()
+                    low_edu = ["ابتدائي", "متوسط", "إعدادي", "دبلوم"]
+                    if any(e in edu for e in low_edu) and any(
+                        t in value_str for t in ["طبيب", "دكتور", "جراح", "طيار", "وزير", "قاضي"]
+                    ):
+                        errors.append(
+                            {
+                                "field": col,
+                                "message": f"المسمى «{value_str}» لا يتناسب مع المؤهل «{edu}»",
+                                "severity": "high",
+                            }
+                        )
+            if "حالة" in col_norm and "اجتماع" in col_norm:
+                if "أعزب" in value_str or "عزب" in value_str:
+                    children_col = next(
+                        (c for c in columns if "تابع" in col_norms[c] or "أبناء" in col_norms[c] or "أولاد" in col_norms[c]),
+                        None,
+                    )
+                    if children_col is not None:
+                        try:
+                            n = int(float(rec.get(children_col) or 0))
+                            if n > 0:
+                                errors.append(
+                                    {
+                                        "field": col,
+                                        "message": f"الحالة «{value_str}» مع وجود تابعين/أبناء يستوجب التحقق",
+                                        "severity": "medium",
+                                    }
+                                )
+                        except (TypeError, ValueError):
+                            pass
 
         penalty = sum({"high": 35, "medium": 20, "low": 8}.get(e["severity"], 10) for e in errors)
         score = max(0, 100 - penalty)
         status = "valid" if not errors else ("warning" if score >= 50 else "error")
-
         results.append(
             {
                 "row_index": row_index,
                 "confidence_score": score,
                 "status": status,
                 "errors": errors,
-                "suggestions": [] if not errors else ["راجع القيم المميزة باللون الأحمر في هذا الصف"],
+                "suggestions": [] if not errors else ["راجع الحقول المميزة في هذا الصف"],
                 "summary": "البيانات تبدو منطقية" if not errors else f"رُصد {len(errors)} تعارضات محتملة",
             }
         )
@@ -305,9 +348,12 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
 def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -> str:
     return (
         "أنت مدقق جودة بيانات خبير في اكتشاف التناقضات المنطقية والدلالية في أي نموذج استبيان.\n"
-        "حلّل كل صف اعتماداً على العلاقة بين الحقول داخل نفس الصف فقط.\n"
-        "المطلوب:\n"
-        "1) اكتشاف القيم غير المنطقية أو المتناقضة سياقياً.\n"
+        "حلّل كل صف اعتماداً على العلاقة بين الحقول داخل نفس الصف فقط.\n\n"
+        "المطلوب — تحليل كل شيء وليس الأرقام فقط:\n"
+        "• الأرقام: عمر، رواتب، سنوات خبرة، أعداد — تحقق من المنطق والحدود.\n"
+        "• النصوص والتسميات: المسمى الوظيفي، المؤهل العلمي، الجنس، الحالة الاجتماعية، نوع السكن، جهة العمل، أي تسمية أو تصنيف — تحقق من التناسق بينها (مثلاً مؤهل «ابتدائي» مع مسمى «طبيب»، أو «أعزب» مع «عدد أبناء» كبير، أو عمر صغير مع منصب قيادي).\n"
+        "• أي حقل آخر: أسماء، فئات، تواريخ، نصوص حرة — راعِ التناسق مع باقي حقول نفس الصف.\n"
+        "1) اكتشاف القيم غير المنطقية أو المتناقضة سياقياً في كل الحقول.\n"
         "2) إرجاع الأخطاء على مستوى الحقول مع ذكر اسم الحقل كما هو EXACT من قائمة الأعمدة.\n"
         "3) إرجاع درجة ثقة لكل صف من 0 إلى 100.\n\n"
         "قائمة الأعمدة (استخدم الأسماء كما هي دون ترجمة):\n"
