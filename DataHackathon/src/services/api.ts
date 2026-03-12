@@ -76,3 +76,19 @@ export async function validateBatch(records: BatchRecord[]): Promise<BatchResult
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }
+
+export interface DynamicBatchPayload {
+  columns: string[]
+  records: Record<string, any>[]
+  mode?: "fast" | "smart"
+}
+
+export async function validateBatchDynamic(payload: DynamicBatchPayload): Promise<BatchResult> {
+  const response = await fetch(`${API_BASE}/api/validate-batch-dynamic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}

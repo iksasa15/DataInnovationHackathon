@@ -1,13 +1,16 @@
 import json
 import os
 import asyncio
+import difflib
+from typing import Any
+
 from openai import AsyncOpenAI
 import google.generativeai as genai
+
 from prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 
 
 def _build_gemini_prompt(form_data: dict) -> str:
-    """يبني prompt نصي كامل مع أمثلة Few-Shot لـ Gemini."""
     parts = [SYSTEM_PROMPT, "\n\n=== أمثلة تدريبية ===\n"]
     for ex in FEW_SHOT_EXAMPLES:
         parts.append(
@@ -25,25 +28,29 @@ def _build_gemini_prompt(form_data: dict) -> str:
 def _build_openai_messages(form_data: dict) -> list[dict]:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for example in FEW_SHOT_EXAMPLES:
-        messages.append({
+        messages.append(
+            {
+                "role": "user",
+                "content": f"حلّل بيانات الاستمارة التالية:\n{json.dumps(example['input'], ensure_ascii=False, indent=2)}",
+            }
+        )
+        messages.append(
+            {
+                "role": "assistant",
+                "content": json.dumps(example["output"], ensure_ascii=False, indent=2),
+            }
+        )
+    messages.append(
+        {
             "role": "user",
-            "content": f"حلّل بيانات الاستمارة التالية:\n{json.dumps(example['input'], ensure_ascii=False, indent=2)}"
-        })
-        messages.append({
-            "role": "assistant",
-            "content": json.dumps(example["output"], ensure_ascii=False, indent=2)
-        })
-    messages.append({
-        "role": "user",
-        "content": f"حلّل بيانات الاستمارة التالية:\n{json.dumps(form_data, ensure_ascii=False, indent=2)}"
-    })
+            "content": f"حلّل بيانات الاستمارة التالية:\n{json.dumps(form_data, ensure_ascii=False, indent=2)}",
+        }
+    )
     return messages
 
 
-async def _call_gemini(form_data: dict) -> dict:
-    api_key = os.getenv("GEMINI_API_KEY")
-    # نجرّب جميع النماذج المتاحة بالترتيب من الأخف للأثقل
-    models_to_try = [
+def _gemini_models() -> list[str]:
+    return [
         "gemini-2.0-flash-lite",
         "gemini-2.5-flash-lite",
         "gemini-flash-lite-latest",
@@ -52,11 +59,13 @@ async def _call_gemini(form_data: dict) -> dict:
         "gemini-flash-latest",
     ]
 
-    genai.configure(api_key=api_key)
-    prompt = _build_gemini_prompt(form_data)
-    last_exc = None
 
-    for i, model_name in enumerate(models_to_try):
+async def _call_gemini_prompt(prompt: str) -> dict:
+    api_key = os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=api_key)
+
+    last_exc = None
+    for i, model_name in enumerate(_gemini_models()):
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
@@ -66,22 +75,25 @@ async def _call_gemini(form_data: dict) -> dict:
                 ),
             )
             response = await asyncio.to_thread(model.generate_content, prompt)
-            return json.loads(response.text)
+            content = (response.text or "{}").strip()
+            return json.loads(content)
         except Exception as exc:
             last_exc = exc
-            err = str(exc)
-            is_quota = "429" in err or "quota" in err.lower() or "rate" in err.lower()
-            is_not_found = "404" in err or "not found" in err.lower()
-            # على 404 ننتقل للنموذج التالي فوراً
+            err = str(exc).lower()
+            is_quota = "429" in err or "quota" in err or "rate" in err
+            is_not_found = "404" in err or "not found" in err
             if is_not_found:
                 continue
-            # على 429 ننتظر ثانية قبل تجربة النموذج التالي
-            if is_quota and i < len(models_to_try) - 1:
+            if is_quota and i < len(_gemini_models()) - 1:
                 await asyncio.sleep(1)
                 continue
             break
 
     raise last_exc
+
+
+async def _call_gemini(form_data: dict) -> dict:
+    return await _call_gemini_prompt(_build_gemini_prompt(form_data))
 
 
 async def _call_openai_compatible(form_data: dict, base_url: str, api_key: str, model: str) -> dict:
@@ -129,9 +141,255 @@ async def validate_form(raw_data: dict) -> dict:
 
         return _mock_validate(clean)
 
-    except Exception as exc:
-        # في جميع حالات الخطأ نرجع للنموذج الاحتياطي بدون رسائل تقنية
+    except Exception:
         return _mock_validate(clean)
+
+
+# ---------- Dynamic batch validation for arbitrary Excel forms ----------
+
+def _norm_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().lower().replace("_", " ").replace("-", " ")
+
+
+def _map_field_to_columns(field: str, columns: list[str]) -> str:
+    if not field:
+        return ""
+    if field in columns:
+        return field
+
+    target = _norm_text(field)
+    col_by_norm = {_norm_text(c): c for c in columns}
+
+    if target in col_by_norm:
+        return col_by_norm[target]
+
+    for norm_col, original in col_by_norm.items():
+        if target in norm_col or norm_col in target:
+            return original
+
+    matches = difflib.get_close_matches(target, list(col_by_norm.keys()), n=1, cutoff=0.72)
+    if matches:
+        return col_by_norm[matches[0]]
+
+    return field
+
+
+def _sanitize_dynamic_item(item: dict, row_index: int, columns: list[str]) -> dict:
+    errors_in = item.get("errors") if isinstance(item.get("errors"), list) else []
+    errors = []
+
+    for err in errors_in:
+        if not isinstance(err, dict):
+            continue
+        mapped_field = _map_field_to_columns(str(err.get("field", "")).strip(), columns)
+        severity = str(err.get("severity", "medium")).lower()
+        if severity not in {"low", "medium", "high"}:
+            severity = "medium"
+        message = str(err.get("message", "")).strip()
+        if not message:
+            continue
+        errors.append(
+            {
+                "field": mapped_field,
+                "message": message,
+                "severity": severity,
+            }
+        )
+
+    score = item.get("confidence_score", 100)
+    try:
+        score = int(round(float(score)))
+    except Exception:
+        score = 100
+    score = max(0, min(100, score))
+
+    status = str(item.get("status", "")).lower().strip()
+    if status not in {"valid", "warning", "error"}:
+        if not errors:
+            status = "valid"
+        elif score >= 50:
+            status = "warning"
+        else:
+            status = "error"
+
+    suggestions = item.get("suggestions") if isinstance(item.get("suggestions"), list) else []
+    suggestions = [str(s) for s in suggestions if str(s).strip()][:5]
+
+    summary = str(item.get("summary", "")).strip()
+    if not summary:
+        summary = "البيانات متسقة ومنطقية" if not errors else f"رُصد {len(errors)} تعارضات تحتاج مراجعة"
+
+    return {
+        "row_index": row_index,
+        "confidence_score": score,
+        "status": status,
+        "errors": errors,
+        "suggestions": suggestions,
+        "summary": summary,
+    }
+
+
+def _compute_stats(results: list[dict]) -> dict:
+    total = len(results)
+    errors_count = sum(1 for r in results if r.get("status") == "error")
+    warnings_count = sum(1 for r in results if r.get("status") == "warning")
+    avg_confidence = round(sum(int(r.get("confidence_score", 0)) for r in results) / total) if total else 0
+    return {
+        "total": total,
+        "errors": errors_count,
+        "warnings": warnings_count,
+        "valid": total - errors_count - warnings_count,
+        "avg_confidence": avg_confidence,
+    }
+
+
+def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
+    results = []
+    for rec in records:
+        row_index = int(rec.get("row_index", 0))
+        errors = []
+
+        for col in columns:
+            value = rec.get(col)
+            if value is None or value == "":
+                continue
+
+            col_norm = _norm_text(col)
+
+            if isinstance(value, (int, float)):
+                if ("عمر" in col_norm or "سن" in col_norm or "age" in col_norm) and (value < 0 or value > 100):
+                    errors.append(
+                        {
+                            "field": col,
+                            "message": f"القيمة ({value}) في '{col}' تبدو غير منطقية",
+                            "severity": "high",
+                        }
+                    )
+                elif value < 0:
+                    errors.append(
+                        {
+                            "field": col,
+                            "message": f"القيمة ({value}) في '{col}' سالبة وغير متوقعة",
+                            "severity": "medium",
+                        }
+                    )
+                elif abs(value) > 1_000_000_000:
+                    errors.append(
+                        {
+                            "field": col,
+                            "message": f"القيمة في '{col}' كبيرة جداً وقد تكون خطأ إدخال",
+                            "severity": "high",
+                        }
+                    )
+
+        penalty = sum({"high": 35, "medium": 20, "low": 8}.get(e["severity"], 10) for e in errors)
+        score = max(0, 100 - penalty)
+        status = "valid" if not errors else ("warning" if score >= 50 else "error")
+
+        results.append(
+            {
+                "row_index": row_index,
+                "confidence_score": score,
+                "status": status,
+                "errors": errors,
+                "suggestions": [] if not errors else ["راجع القيم المميزة باللون الأحمر في هذا الصف"],
+                "summary": "البيانات تبدو منطقية" if not errors else f"رُصد {len(errors)} تعارضات محتملة",
+            }
+        )
+
+    return {"results": results, "stats": _compute_stats(results)}
+
+
+def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -> str:
+    return (
+        "أنت مدقق جودة بيانات خبير في اكتشاف التناقضات المنطقية والدلالية في أي نموذج استبيان.\n"
+        "حلّل كل صف اعتماداً على العلاقة بين الحقول داخل نفس الصف فقط.\n"
+        "المطلوب:\n"
+        "1) اكتشاف القيم غير المنطقية أو المتناقضة سياقياً.\n"
+        "2) إرجاع الأخطاء على مستوى الحقول مع ذكر اسم الحقل كما هو EXACT من قائمة الأعمدة.\n"
+        "3) إرجاع درجة ثقة لكل صف من 0 إلى 100.\n\n"
+        "قائمة الأعمدة (استخدم الأسماء كما هي دون ترجمة):\n"
+        f"{json.dumps(columns, ensure_ascii=False)}\n\n"
+        "الصفوف للتحليل:\n"
+        f"{json.dumps(records_chunk, ensure_ascii=False)}\n\n"
+        "أعد JSON فقط بهذه البنية:\n"
+        "{\n"
+        '  "results": [\n'
+        "    {\n"
+        '      "row_index": 0,\n'
+        '      "confidence_score": 0,\n'
+        '      "status": "valid|warning|error",\n'
+        '      "errors": [\n'
+        "        {\n"
+        '          "field": "<اسم عمود من القائمة كما هو>",\n'
+        '          "message": "<سبب التعارض>",\n'
+        '          "severity": "low|medium|high"\n'
+        "        }\n"
+        "      ],\n"
+        '      "suggestions": ["..."],\n'
+        '      "summary": "..."\n'
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        "تأكد من شمول كل row_index في الرد، حتى إن لم يوجد خطأ (errors = [])."
+    )
+
+
+async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: str = "smart") -> dict:
+    if not columns or not records:
+        return {"results": [], "stats": _compute_stats([])}
+
+    cleaned_records = []
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        row_index = rec.get("row_index")
+        if row_index is None:
+            continue
+        clean_row = {"row_index": int(row_index)}
+        for col in columns:
+            clean_row[col] = rec.get(col)
+        cleaned_records.append(clean_row)
+
+    if not cleaned_records:
+        return {"results": [], "stats": _compute_stats([])}
+
+    mode = (mode or "smart").lower().strip()
+    if mode == "fast":
+        return _dynamic_fallback(columns, cleaned_records)
+
+    if not os.getenv("GEMINI_API_KEY"):
+        return _dynamic_fallback(columns, cleaned_records)
+
+    chunk_size = max(5, int(os.getenv("DYNAMIC_BATCH_SIZE", "20")))
+    results = []
+
+    for i in range(0, len(cleaned_records), chunk_size):
+        chunk = cleaned_records[i : i + chunk_size]
+        try:
+            prompt = _build_dynamic_batch_prompt(columns, chunk)
+            raw = await _call_gemini_prompt(prompt)
+            model_results = raw.get("results") if isinstance(raw, dict) else []
+            model_results = model_results if isinstance(model_results, list) else []
+
+            by_index = {}
+            for item in model_results:
+                if isinstance(item, dict) and "row_index" in item:
+                    by_index[int(item["row_index"])] = item
+
+            for rec in chunk:
+                idx = rec["row_index"]
+                item = by_index.get(idx, {})
+                results.append(_sanitize_dynamic_item(item, idx, columns))
+
+        except Exception:
+            fallback_chunk = _dynamic_fallback(columns, chunk)
+            results.extend(fallback_chunk["results"])
+
+    results.sort(key=lambda r: int(r.get("row_index", 0)))
+    return {"results": results, "stats": _compute_stats(results)}
 
 
 def validate_form_quick(data: dict) -> dict:
@@ -167,65 +425,76 @@ def _mock_validate(data: dict) -> dict:
     children = data.get("children_count", 0) or 0
     salary = data.get("monthly_salary", 0) or 0
 
-    MEDICAL_JOBS = ["طبيب", "طبيبة", "دكتور", "دكتورة", "صيدلاني", "صيدلانية"]
-    ENGINEER_JOBS = ["مهندس", "مهندسة"]
-    EXECUTIVE_JOBS = ["مدير عام", "رئيس تنفيذي", "نائب رئيس"]
-    LOW_EDU = ["ابتدائي", "متوسط", "إعدادي"]
-    DIPLOMA_EDU = ["دبلوم", "ثانوي"]
+    medical_jobs = ["طبيب", "طبيبة", "دكتور", "دكتورة", "صيدلاني", "صيدلانية"]
+    engineer_jobs = ["مهندس", "مهندسة"]
+    executive_jobs = ["مدير عام", "رئيس تنفيذي", "نائب رئيس"]
+    low_edu = ["ابتدائي", "متوسط", "إعدادي"]
+    diploma_edu = ["دبلوم", "ثانوي"]
 
     if age and years_exp:
         max_possible_exp = age - 15
         if years_exp > max_possible_exp:
-            errors.append({
-                "field": "years_experience",
-                "message": (
-                    f"سنوات الخبرة ({years_exp}) غير منطقية مع العمر ({age}) — "
-                    f"الحد الأقصى المعقول هو {max(0, max_possible_exp)} سنة"
-                ),
-                "severity": "high",
-            })
+            errors.append(
+                {
+                    "field": "years_experience",
+                    "message": f"سنوات الخبرة ({years_exp}) غير منطقية مع العمر ({age}) — الحد الأقصى المعقول هو {max(0, max_possible_exp)} سنة",
+                    "severity": "high",
+                }
+            )
 
     if job_title:
-        if any(j in job_title for j in MEDICAL_JOBS) and education in LOW_EDU + DIPLOMA_EDU:
-            errors.append({
-                "field": "education",
-                "message": f"'{job_title}' يتطلب بكالوريوس على الأقل — المؤهل '{education}' لا يؤهل لممارسة المهنة الطبية",
-                "severity": "high",
-            })
-        elif any(j in job_title for j in ENGINEER_JOBS) and education in LOW_EDU:
-            errors.append({
-                "field": "education",
-                "message": f"'{job_title}' يتطلب بكالوريوس هندسة على الأقل — المؤهل الحالي غير كافٍ",
-                "severity": "high",
-            })
-        elif any(j in job_title for j in EXECUTIVE_JOBS):
+        if any(j in job_title for j in medical_jobs) and education in low_edu + diploma_edu:
+            errors.append(
+                {
+                    "field": "education",
+                    "message": f"'{job_title}' يتطلب بكالوريوس على الأقل — المؤهل '{education}' لا يؤهل لممارسة المهنة الطبية",
+                    "severity": "high",
+                }
+            )
+        elif any(j in job_title for j in engineer_jobs) and education in low_edu:
+            errors.append(
+                {
+                    "field": "education",
+                    "message": f"'{job_title}' يتطلب بكالوريوس هندسة على الأقل — المؤهل الحالي غير كافٍ",
+                    "severity": "high",
+                }
+            )
+        elif any(j in job_title for j in executive_jobs):
             if age and age < 30:
-                errors.append({
-                    "field": "job_title",
-                    "message": f"منصب '{job_title}' نادراً ما يُشغله شخص دون الثلاثين — تحقق من صحة المسمى",
-                    "severity": "medium",
-                })
+                errors.append(
+                    {
+                        "field": "job_title",
+                        "message": f"منصب '{job_title}' نادراً ما يُشغله شخص دون الثلاثين — تحقق من صحة المسمى",
+                        "severity": "medium",
+                    }
+                )
             if years_exp is not None and years_exp < 8:
-                errors.append({
-                    "field": "years_experience",
-                    "message": f"منصب '{job_title}' عادةً يستلزم خبرة 10 سنوات فأكثر",
-                    "severity": "medium",
-                })
+                errors.append(
+                    {
+                        "field": "years_experience",
+                        "message": f"منصب '{job_title}' عادةً يستلزم خبرة 10 سنوات فأكثر",
+                        "severity": "medium",
+                    }
+                )
 
     if children > 0 and marital == "أعزب":
-        errors.append({
-            "field": "children_count",
-            "message": f"وجود {children} أبناء مع الحالة الاجتماعية 'أعزب' يستوجب التحقق من المستجيب",
-            "severity": "medium",
-        })
+        errors.append(
+            {
+                "field": "children_count",
+                "message": f"وجود {children} أبناء مع الحالة الاجتماعية 'أعزب' يستوجب التحقق من المستجيب",
+                "severity": "medium",
+            }
+        )
 
     if salary and salary > 0:
         if job_title and any(j in job_title for j in ["موظف", "موظفة", "سائق", "عامل"]) and salary > 50000:
-            errors.append({
-                "field": "monthly_salary",
-                "message": f"الراتب ({salary:,.0f} ر.س) مرتفع جداً بالنسبة لمسمى '{job_title}'",
-                "severity": "low",
-            })
+            errors.append(
+                {
+                    "field": "monthly_salary",
+                    "message": f"الراتب ({salary:,.0f} ر.س) مرتفع جداً بالنسبة لمسمى '{job_title}'",
+                    "severity": "low",
+                }
+            )
 
     penalty = sum({"high": 35, "medium": 20, "low": 8}.get(e["severity"], 10) for e in errors)
     confidence = max(0, 100 - penalty)
@@ -247,11 +516,7 @@ def _mock_validate(data: dict) -> dict:
         if "job_title" in fields:
             suggestions.append("اطلب من المستجيب توضيح مسماه الوظيفي الدقيق")
 
-    summary = (
-        "البيانات متسقة ومنطقية — لا توجد تعارضات مرصودة."
-        if not errors
-        else f"رُصد {len(errors)} {'تعارض' if len(errors) == 1 else 'تعارضات'} تستوجب المراجعة."
-    )
+    summary = "البيانات متسقة ومنطقية — لا توجد تعارضات مرصودة." if not errors else f"رُصد {len(errors)} تعارضات تستوجب المراجعة."
 
     return {
         "confidence_score": confidence,

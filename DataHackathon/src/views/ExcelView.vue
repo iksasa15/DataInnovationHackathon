@@ -1,36 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
-import { validateBatch } from '../services/api'
+import { validateBatchDynamic } from '../services/api'
 import type { BatchResult, ValidationError } from '../services/api'
-
-// ===== Column mapping Arabic/English → field name =====
-const HEADER_TO_FIELD: Record<string, string> = {
-  'الاسم': 'name', 'الاسم الكامل': 'name', 'name': 'name',
-  'العمر': 'age', 'السن': 'age', 'age': 'age',
-  'الجنس': 'gender', 'النوع': 'gender', 'gender': 'gender',
-  'المستوى التعليمي': 'education', 'المؤهل العلمي': 'education',
-  'المؤهل': 'education', 'الشهادة': 'education', 'education': 'education',
-  'المسمى الوظيفي': 'job_title', 'الوظيفة': 'job_title',
-  'المنصب': 'job_title', 'job_title': 'job_title',
-  'سنوات الخبرة': 'years_experience', 'الخبرة': 'years_experience',
-  'سنوات الخبره': 'years_experience', 'years_experience': 'years_experience',
-  'الراتب الشهري': 'monthly_salary', 'الراتب': 'monthly_salary',
-  'الدخل الشهري': 'monthly_salary', 'monthly_salary': 'monthly_salary',
-  'القطاع': 'sector', 'جهة العمل': 'sector', 'sector': 'sector',
-  'الحالة الاجتماعية': 'marital_status', 'الحاله الاجتماعيه': 'marital_status',
-  'marital_status': 'marital_status',
-  'عدد الأبناء': 'children_count', 'عدد الابناء': 'children_count',
-  'الأبناء': 'children_count', 'children_count': 'children_count',
-}
-
-// ===== State =====
-interface RowData {
-  row_index: number
-  originalData: Record<string, any>
-  mappedData: Record<string, any>
-  validation: (ValidationResult & { row_index: number }) | null
-}
 
 interface ValidationResult {
   confidence_score: number
@@ -40,17 +12,21 @@ interface ValidationResult {
   summary: string
 }
 
+interface RowData {
+  row_index: number
+  originalData: Record<string, any>
+  validation: (ValidationResult & { row_index: number }) | null
+}
+
 const isDragging = ref(false)
 const isProcessing = ref(false)
 const fileName = ref('')
 const columns = ref<string[]>([])
-const columnMap = ref<Record<string, string>>({}) // header → field
 const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
-const activeTooltip = ref<{ rowIdx: number; col: string } | null>(null)
+const analysisMode = ref<'smart' | 'fast'>('smart')
 
-// ===== Computed =====
 const filteredRows = computed(() => {
   if (filter.value === 'all') return rows.value
   return rows.value.filter((r) => r.validation?.status === filter.value)
@@ -58,7 +34,6 @@ const filteredRows = computed(() => {
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
-// ===== File Handling =====
 function onDrop(e: DragEvent) {
   isDragging.value = false
   const file = e.dataTransfer?.files[0]
@@ -70,54 +45,87 @@ function onFileInput(e: Event) {
   if (file) processFile(file)
 }
 
-const NUMERIC_FIELDS = new Set([
-  'age', 'years_experience', 'monthly_salary', 'children_count',
-])
+function scoreArabicQuality(text: string): number {
+  const arabicMatches = text.match(/[\u0600-\u06FF]/g)?.length ?? 0
+  const mojibakeMatches = text.match(/[ØÙÃÂ]/g)?.length ?? 0
+  return arabicMatches - mojibakeMatches * 3
+}
+
+function decodeCsvBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const candidates = ['utf-8', 'windows-1256', 'iso-8859-6']
+  let best = ''
+  let bestScore = Number.NEGATIVE_INFINITY
+
+  for (const encoding of candidates) {
+    try {
+      const decoded = new TextDecoder(encoding).decode(bytes)
+      const score = scoreArabicQuality(decoded)
+      if (score > bestScore) {
+        best = decoded
+        bestScore = score
+      }
+    } catch {
+      // Skip unsupported encodings in some browsers.
+    }
+  }
+
+  if (best) return best
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
+function parseWorkbook(data: ArrayBuffer, isCsv: boolean) {
+  if (isCsv) {
+    const decodedCsv = decodeCsvBuffer(data)
+    return XLSX.read(decodedCsv, { type: 'string' })
+  }
+  return XLSX.read(new Uint8Array(data), { type: 'array' })
+}
 
 function processFile(file: File) {
   fileName.value = file.name
+  const isCsv = file.name.toLowerCase().endsWith('.csv')
   const reader = new FileReader()
+
   reader.onload = (e) => {
-    const data = new Uint8Array(e.target!.result as ArrayBuffer)
-    const wb = XLSX.read(data, { type: 'array' })
-    const ws = wb.Sheets[wb.SheetNames[0]]
+    const result = e.target?.result
+    if (!result) return
+
+    const wb = parseWorkbook(result as ArrayBuffer, isCsv)
+    const firstSheetName = wb.SheetNames[0]
+    if (!firstSheetName) return
+
+    const ws = wb.Sheets[firstSheetName]
+    if (!ws) return
+
     const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-    if (!rawRows.length) return
+    if (!rawRows.length || !rawRows[0]) return
 
     columns.value = Object.keys(rawRows[0])
-
-    const map: Record<string, string> = {}
-    for (const col of columns.value) {
-      const norm = col.trim()
-      map[col] = HEADER_TO_FIELD[norm] ?? HEADER_TO_FIELD[norm.toLowerCase()] ?? ''
-    }
-    columnMap.value = map
-
-    rows.value = rawRows.map((row, i) => {
-      const mapped: Record<string, any> = {}
-      for (const [col, field] of Object.entries(map)) {
-        if (field && field !== 'name') {
-          const val = row[col]
-          if (val !== '' && val !== null && val !== undefined) {
-            mapped[field] = NUMERIC_FIELDS.has(field) ? (Number(val) ?? null) : String(val)
-          }
-        }
-      }
-      return { row_index: i, originalData: row, mappedData: mapped, validation: null }
-    })
+    rows.value = rawRows.map((row, i) => ({
+      row_index: i,
+      originalData: row,
+      validation: null,
+    }))
 
     batchResult.value = null
+    filter.value = 'all'
   }
+
   reader.readAsArrayBuffer(file)
 }
 
-// ===== Analysis =====
 async function analyzeAll() {
-  if (!rows.value.length) return
+  if (!rows.value.length || !columns.value.length) return
   isProcessing.value = true
   try {
-    const records = rows.value.map((r) => ({ row_index: r.row_index, ...r.mappedData }))
-    batchResult.value = await validateBatch(records)
+    const payload = {
+      columns: columns.value,
+      records: rows.value.map((r) => ({ row_index: r.row_index, ...r.originalData })),
+      mode: analysisMode.value,
+    }
+
+    batchResult.value = await validateBatchDynamic(payload)
 
     const resultMap = new Map(batchResult.value.results.map((r) => [r.row_index, r]))
     rows.value = rows.value.map((r) => ({
@@ -134,15 +142,21 @@ function resetFile() {
   columns.value = []
   rows.value = []
   batchResult.value = null
-  columnMap.value = {}
   filter.value = 'all'
 }
 
-// ===== Cell helpers =====
+function norm(value: string) {
+  return value.trim().toLowerCase().replace(/[_\-\s]+/g, ' ')
+}
+
 function getFieldError(row: RowData, col: string): ValidationError | null {
-  const field = columnMap.value[col]
-  if (!field || !row.validation) return null
-  return row.validation.errors.find((e) => e.field === field) ?? null
+  if (!row.validation) return null
+  const target = norm(col)
+  return (
+    row.validation.errors.find((e) => norm(e.field) === target) ||
+    row.validation.errors.find((e) => target.includes(norm(e.field)) || norm(e.field).includes(target)) ||
+    null
+  )
 }
 
 function getCellClass(row: RowData, col: string) {
@@ -202,13 +216,27 @@ function scoreColor(score: number) {
           <span class="file-rows">{{ rows.length }} سجل</span>
         </div>
         <div class="toolbar-actions">
+          <div class="mode-switch" role="group" aria-label="وضع التحليل">
+            <button
+              class="mode-btn"
+              :class="analysisMode === 'smart' && 'mode-btn-active'"
+              type="button"
+              @click="analysisMode = 'smart'"
+            >🧠 ذكي (Gemini)</button>
+            <button
+              class="mode-btn"
+              :class="analysisMode === 'fast' && 'mode-btn-active'"
+              type="button"
+              @click="analysisMode = 'fast'"
+            >⚡ سريع (محلي)</button>
+          </div>
           <button class="btn btn-ghost btn-sm" @click="resetFile">تغيير الملف</button>
           <button
             class="btn btn-primary btn-sm"
             :disabled="isProcessing"
             @click="analyzeAll">
             <span v-if="isProcessing" class="btn-spinner"></span>
-            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل الملف' }}
+            {{ isProcessing ? 'جارٍ التحليل…' : analysisMode === 'smart' ? '🔍 تحليل ذكي' : '🔍 تحليل سريع' }}
           </button>
         </div>
       </div>
@@ -410,7 +438,39 @@ function scoreColor(score: number) {
   padding: 0.15rem 0.5rem;
   border-radius: 9999px;
 }
-.toolbar-actions { display: flex; gap: 0.5rem; }
+.toolbar-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+.mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mode-btn + .mode-btn {
+  border-right: 1px solid var(--color-border);
+}
+
+.mode-btn:hover {
+  background: var(--color-background-mute);
+}
+
+.mode-btn-active {
+  color: #0e7490;
+  background: rgba(6, 182, 212, 0.1);
+}
 
 /* Stats */
 .stats-bar {

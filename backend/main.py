@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Literal
 
-from validator import validate_form, validate_form_quick
+from validator import validate_form, validate_form_quick, validate_rows_dynamic
 
 load_dotenv()
 
@@ -106,6 +106,17 @@ async def validate_batch(records: List[BatchRecord]):
             "avg_confidence": avg_confidence,
         },
     }
+
+
+class DynamicBatchPayload(BaseModel):
+    columns: List[str]
+    records: List[Dict[str, Any]]
+    mode: Literal["fast", "smart"] = "smart"
+
+
+@app.post("/api/validate-batch-dynamic")
+async def validate_batch_dynamic(payload: DynamicBatchPayload):
+    return await validate_rows_dynamic(payload.columns, payload.records, payload.mode)
 
 
 if __name__ == "__main__":
