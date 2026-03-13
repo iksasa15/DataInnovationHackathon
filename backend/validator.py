@@ -385,7 +385,7 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
 
 async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: str = "smart") -> dict:
     if not columns or not records:
-        return {"results": [], "stats": _compute_stats([])}
+        return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
     cleaned_records = []
     for rec in records:
@@ -400,17 +400,24 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
         cleaned_records.append(clean_row)
 
     if not cleaned_records:
-        return {"results": [], "stats": _compute_stats([])}
+        return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
     mode = (mode or "smart").lower().strip()
     if mode == "fast":
-        return _dynamic_fallback(columns, cleaned_records)
+        out = _dynamic_fallback(columns, cleaned_records)
+        out["provider"] = "local"
+        return out
 
-    if not os.getenv("GEMINI_API_KEY"):
-        return _dynamic_fallback(columns, cleaned_records)
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key or not gemini_key.strip():
+        out = _dynamic_fallback(columns, cleaned_records)
+        out["provider"] = "local"
+        out["gemini_unavailable"] = True
+        return out
 
     chunk_size = max(5, int(os.getenv("DYNAMIC_BATCH_SIZE", "20")))
     results = []
+    gemini_used = False
 
     for i in range(0, len(cleaned_records), chunk_size):
         chunk = cleaned_records[i : i + chunk_size]
@@ -429,13 +436,17 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
                 idx = rec["row_index"]
                 item = by_index.get(idx, {})
                 results.append(_sanitize_dynamic_item(item, idx, columns))
-
+            gemini_used = True
         except Exception:
             fallback_chunk = _dynamic_fallback(columns, chunk)
             results.extend(fallback_chunk["results"])
 
     results.sort(key=lambda r: int(r.get("row_index", 0)))
-    return {"results": results, "stats": _compute_stats(results)}
+    return {
+        "results": results,
+        "stats": _compute_stats(results),
+        "provider": "gemini" if gemini_used else "local",
+    }
 
 
 def validate_form_quick(data: dict) -> dict:

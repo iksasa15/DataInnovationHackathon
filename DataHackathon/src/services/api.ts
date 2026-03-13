@@ -65,6 +65,8 @@ export interface BatchStats {
 export interface BatchResult {
   results: (ValidationResult & { row_index: number })[]
   stats: BatchStats
+  provider?: 'gemini' | 'local'
+  gemini_unavailable?: boolean
 }
 
 export async function validateBatch(records: BatchRecord[]): Promise<BatchResult> {

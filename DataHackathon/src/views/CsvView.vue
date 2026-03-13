@@ -275,6 +275,13 @@ function scoreColor(score: number) {
         </div>
       </div>
 
+      <div v-if="batchResult && analysisMode === 'smart' && batchResult.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
+        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
+        <span v-else-if="batchResult.provider === 'local'">
+          التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
+        </span>
+      </div>
+
       <div v-if="batchResult" class="filter-tabs">
         <button :class="['tab', filter === 'all' && 'tab-active']" @click="filter = 'all'">
           الكل ({{ rows.length }})
@@ -493,6 +500,16 @@ function scoreColor(score: number) {
 .stat-error .stat-num { color: #ef4444; }
 .stat-warning .stat-num { color: #f59e0b; }
 .stat-valid .stat-num { color: #10b981; }
+
+.provider-notice {
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+.provider-notice code { font-family: ui-monospace, monospace; padding: 0.1rem 0.35rem; border-radius: 0.25rem; }
+.provider-ok { background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; color: #047857; }
+.provider-local { background: rgba(245, 158, 11, 0.12); border: 1px solid #f59e0b; color: #b45309; }
 
 .filter-tabs {
   display: flex;
