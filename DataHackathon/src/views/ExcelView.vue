@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
+import iconv from 'iconv-lite'
 import { validateBatchDynamic } from '../services/api'
 import type { BatchResult, ValidationError } from '../services/api'
 
@@ -46,32 +47,35 @@ function onFileInput(e: Event) {
 }
 
 function scoreArabicQuality(text: string): number {
-  const arabicMatches = text.match(/[\u0600-\u06FF]/g)?.length ?? 0
-  const mojibakeMatches = text.match(/[ØÙÃÂ]/g)?.length ?? 0
-  return arabicMatches - mojibakeMatches * 3
+  const arabicMatches = text.match(/[\u0600-\u06FF\u0750-\u077F]/g)?.length ?? 0
+  const mojibakeMatches = text.match(/[ØÙÃÂÃ¡Ã¢Ã£]/g)?.length ?? 0
+  const replacementCount = (text.match(/\uFFFD/g) ?? []).length
+  return arabicMatches - mojibakeMatches * 3 - replacementCount * 5
 }
+
+const ARABIC_CSV_ENCODINGS = ['utf8', 'win1256', 'iso-8859-6'] as const
 
 function decodeCsvBuffer(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
-  const candidates = ['utf-8', 'windows-1256', 'iso-8859-6']
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return iconv.decode(bytes.subarray(3), 'utf8')
+  }
   let best = ''
   let bestScore = Number.NEGATIVE_INFINITY
-
-  for (const encoding of candidates) {
+  for (const enc of ARABIC_CSV_ENCODINGS) {
     try {
-      const decoded = new TextDecoder(encoding).decode(bytes)
+      const decoded = iconv.decode(bytes, enc)
       const score = scoreArabicQuality(decoded)
       if (score > bestScore) {
         best = decoded
         bestScore = score
       }
     } catch {
-      // Skip unsupported encodings in some browsers.
+      /* unsupported encoding */
     }
   }
-
   if (best) return best
-  return new TextDecoder('utf-8').decode(bytes)
+  return iconv.decode(bytes, 'utf8')
 }
 
 function parseWorkbook(data: ArrayBuffer, isCsv: boolean) {
