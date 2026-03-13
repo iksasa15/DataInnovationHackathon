@@ -20,6 +20,11 @@ const router = createRouter({
       component: () => import('../views/ExcelView.vue'),
     },
     {
+      path: '/csv',
+      name: 'csv',
+      component: () => import('../views/CsvView.vue'),
+    },
+    {
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),

@@ -12,6 +12,7 @@ import { RouterLink, RouterView } from 'vue-router'
         <RouterLink to="/">الرئيسية</RouterLink>
         <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
         <RouterLink to="/excel" class="nav-highlight">📊 تحليل Excel</RouterLink>
+        <RouterLink to="/csv" class="nav-highlight">📋 تحليل CSV</RouterLink>
         <RouterLink to="/about">من نحن</RouterLink>
       </nav>
     </header>
