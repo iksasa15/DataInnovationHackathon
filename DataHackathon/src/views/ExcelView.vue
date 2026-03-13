@@ -47,24 +47,27 @@ function onFileInput(e: Event) {
 }
 
 function scoreArabicQuality(text: string): number {
-  const arabicMatches = text.match(/[\u0600-\u06FF\u0750-\u077F]/g)?.length ?? 0
-  const mojibakeMatches = text.match(/[ØÙÃÂÃ¡Ã¢Ã£]/g)?.length ?? 0
+  const arabicMatches = text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g)?.length ?? 0
+  const mojibakeMatches = text.match(/[ØÙÃÂÃ¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§Ã¨Ã©]/g)?.length ?? 0
   const replacementCount = (text.match(/\uFFFD/g) ?? []).length
   return arabicMatches - mojibakeMatches * 3 - replacementCount * 5
 }
 
-const ARABIC_CSV_ENCODINGS = ['utf8', 'win1256', 'iso-8859-6'] as const
+const LEGACY_ARABIC_ENCODINGS = ['win1256', 'iso-8859-6'] as const
+const utf8Decoder = new TextDecoder('utf-8', { fatal: false })
 
 function decodeCsvBuffer(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    return iconv.decode(bytes.subarray(3), 'utf8')
+    return utf8Decoder.decode(bytes.subarray(3))
   }
-  let best = ''
-  let bestScore = Number.NEGATIVE_INFINITY
-  for (const enc of ARABIC_CSV_ENCODINGS) {
+  const utf8Decoded = utf8Decoder.decode(bytes)
+  if (/[\u0600-\u06FF]/.test(utf8Decoded) && !/\uFFFD/.test(utf8Decoded)) return utf8Decoded
+  let best = utf8Decoded
+  let bestScore = scoreArabicQuality(utf8Decoded)
+  for (const enc of LEGACY_ARABIC_ENCODINGS) {
     try {
-      const decoded = iconv.decode(bytes, enc)
+      const decoded = iconv.decode(bytes as unknown as Buffer, enc)
       const score = scoreArabicQuality(decoded)
       if (score > bestScore) {
         best = decoded
@@ -74,8 +77,7 @@ function decodeCsvBuffer(buffer: ArrayBuffer): string {
       /* unsupported encoding */
     }
   }
-  if (best) return best
-  return iconv.decode(bytes, 'utf8')
+  return best
 }
 
 function parseWorkbook(data: ArrayBuffer, isCsv: boolean) {
