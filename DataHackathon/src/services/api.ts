@@ -1,5 +1,21 @@
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000'
 
+const GEMINI_KEY_STORAGE = 'datahackathon_gemini_api_key'
+
+export function getGeminiApiKey(): string | null {
+  try {
+    return localStorage.getItem(GEMINI_KEY_STORAGE)
+  } catch {
+    return null
+  }
+}
+
+export function setGeminiApiKey(key: string): void {
+  const v = key?.trim() || ''
+  if (v) localStorage.setItem(GEMINI_KEY_STORAGE, v)
+  else localStorage.removeItem(GEMINI_KEY_STORAGE)
+}
+
 export interface FormData {
   name?: string | null
   age?: number | null
@@ -50,6 +66,20 @@ export async function checkHealth(): Promise<HealthStatus> {
   return response.json()
 }
 
+export interface GeminiStatus {
+  ok: boolean
+  message: string
+}
+
+export async function checkGeminiStatus(): Promise<GeminiStatus> {
+  const headers: Record<string, string> = {}
+  const key = getGeminiApiKey()
+  if (key) headers['X-Gemini-API-Key'] = key
+  const response = await fetch(`${API_BASE}/api/gemini-status`, { headers })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
 export interface BatchRecord extends FormData {
   row_index: number
 }
@@ -86,9 +116,12 @@ export interface DynamicBatchPayload {
 }
 
 export async function validateBatchDynamic(payload: DynamicBatchPayload): Promise<BatchResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const key = getGeminiApiKey()
+  if (key) headers['X-Gemini-API-Key'] = key
   const response = await fetch(`${API_BASE}/api/validate-batch-dynamic`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)

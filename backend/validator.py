@@ -60,9 +60,11 @@ def _gemini_models() -> list[str]:
     ]
 
 
-async def _call_gemini_prompt(prompt: str) -> dict:
-    api_key = os.getenv("GEMINI_API_KEY")
-    genai.configure(api_key=api_key)
+async def _call_gemini_prompt(prompt: str, api_key: str | None = None) -> dict:
+    key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+    if not key:
+        raise ValueError("GEMINI_API_KEY not set")
+    genai.configure(api_key=key)
 
     last_exc = None
     for i, model_name in enumerate(_gemini_models()):
@@ -94,6 +96,32 @@ async def _call_gemini_prompt(prompt: str) -> dict:
 
 async def _call_gemini(form_data: dict) -> dict:
     return await _call_gemini_prompt(_build_gemini_prompt(form_data))
+
+
+async def check_gemini_connection(api_key: str | None = None) -> dict:
+    """التحقق من اتصال Gemini بعمل طلب بسيط. إذا وُجد api_key يُستخدم وإلا من .env"""
+    key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+    if not key:
+        return {"ok": False, "message": "مفتاح API غير مضبوط. أدخله في الحقل أعلاه أو في ملف .env"}
+    try:
+        genai.configure(api_key=key)
+        model = genai.GenerativeModel(
+            model_name=_gemini_models()[0],
+            generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=10),
+        )
+        response = await asyncio.to_thread(model.generate_content, "قل: متصل")
+        if response and response.text:
+            return {"ok": True, "message": "متصل بـ Gemini بنجاح"}
+        return {"ok": True, "message": "تم الاتصال"}
+    except Exception as exc:
+        err = str(exc).lower()
+        if "api_key" in err or "invalid" in err or "401" in err:
+            return {"ok": False, "message": "مفتاح API غير صالح أو منتهي"}
+        if "429" in err or "quota" in err:
+            return {"ok": False, "message": "تجاوز حد الاستخدام، جرّب لاحقاً"}
+        if "network" in err or "connection" in err:
+            return {"ok": False, "message": "فشل الاتصال بالشبكة"}
+        return {"ok": False, "message": f"خطأ: {str(exc)[:120]}"}
 
 
 async def _call_openai_compatible(form_data: dict, base_url: str, api_key: str, model: str) -> dict:
@@ -383,7 +411,9 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
     )
 
 
-async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: str = "smart") -> dict:
+async def validate_rows_dynamic(
+    columns: list[str], records: list[dict], mode: str = "smart", gemini_api_key: str | None = None
+) -> dict:
     if not columns or not records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
@@ -408,8 +438,8 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
         out["provider"] = "local"
         return out
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key or not gemini_key.strip():
+    gemini_key = (gemini_api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+    if not gemini_key:
         out = _dynamic_fallback(columns, cleaned_records)
         out["provider"] = "local"
         out["gemini_unavailable"] = True
@@ -423,7 +453,7 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
         chunk = cleaned_records[i : i + chunk_size]
         try:
             prompt = _build_dynamic_batch_prompt(columns, chunk)
-            raw = await _call_gemini_prompt(prompt)
+            raw = await _call_gemini_prompt(prompt, api_key=gemini_key)
             model_results = raw.get("results") if isinstance(raw, dict) else []
             model_results = model_results if isinstance(model_results, list) else []
 
