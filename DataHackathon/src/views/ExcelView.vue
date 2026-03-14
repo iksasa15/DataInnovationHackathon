@@ -26,7 +26,6 @@ const columns = ref<string[]>([])
 const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
-const analysisMode = ref<'smart' | 'fast'>('smart')
 
 const filteredRows = computed(() => {
   if (filter.value === 'all') return rows.value
@@ -128,7 +127,7 @@ async function analyzeAll() {
     const payload = {
       columns: columns.value,
       records: rows.value.map((r) => ({ row_index: r.row_index, ...r.originalData })),
-      mode: analysisMode.value,
+      mode: 'smart',
     }
 
     batchResult.value = await validateBatchDynamic(payload)
@@ -222,27 +221,13 @@ function scoreColor(score: number) {
           <span class="file-rows">{{ rows.length }} سجل</span>
         </div>
         <div class="toolbar-actions">
-          <div class="mode-switch" role="group" aria-label="وضع التحليل">
-            <button
-              class="mode-btn"
-              :class="analysisMode === 'smart' && 'mode-btn-active'"
-              type="button"
-              @click="analysisMode = 'smart'"
-            >🧠 ذكي (Gemini)</button>
-            <button
-              class="mode-btn"
-              :class="analysisMode === 'fast' && 'mode-btn-active'"
-              type="button"
-              @click="analysisMode = 'fast'"
-            >⚡ سريع (محلي)</button>
-          </div>
           <button class="btn btn-ghost btn-sm" @click="resetFile">تغيير الملف</button>
           <button
             class="btn btn-primary btn-sm"
             :disabled="isProcessing"
             @click="analyzeAll">
             <span v-if="isProcessing" class="btn-spinner"></span>
-            {{ isProcessing ? 'جارٍ التحليل…' : analysisMode === 'smart' ? '🔍 تحليل ذكي' : '🔍 تحليل سريع' }}
+            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بـ Gemini' }}
           </button>
         </div>
       </div>
@@ -273,7 +258,7 @@ function scoreColor(score: number) {
         </div>
       </div>
 
-      <div v-if="batchResult && analysisMode === 'smart' && batchResult.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
+      <div v-if="batchResult?.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
         <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
         <span v-else-if="batchResult.provider === 'local'">
           التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
@@ -452,38 +437,6 @@ function scoreColor(score: number) {
   border-radius: 9999px;
 }
 .toolbar-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-
-.mode-switch {
-  display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  overflow: hidden;
-  background: var(--color-background);
-}
-
-.mode-btn {
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0.45rem 0.7rem;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.mode-btn + .mode-btn {
-  border-right: 1px solid var(--color-border);
-}
-
-.mode-btn:hover {
-  background: var(--color-background-mute);
-}
-
-.mode-btn-active {
-  color: #0e7490;
-  background: rgba(6, 182, 212, 0.1);
-}
 
 /* Stats */
 .stats-bar {

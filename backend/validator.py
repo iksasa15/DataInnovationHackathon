@@ -60,11 +60,9 @@ def _gemini_models() -> list[str]:
     ]
 
 
-async def _call_gemini_prompt(prompt: str, api_key: str | None = None) -> dict:
-    key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
-    if not key:
-        raise ValueError("GEMINI_API_KEY not set")
-    genai.configure(api_key=key)
+async def _call_gemini_prompt(prompt: str) -> dict:
+    api_key = os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=api_key)
 
     last_exc = None
     for i, model_name in enumerate(_gemini_models()):
@@ -98,13 +96,13 @@ async def _call_gemini(form_data: dict) -> dict:
     return await _call_gemini_prompt(_build_gemini_prompt(form_data))
 
 
-async def check_gemini_connection(api_key: str | None = None) -> dict:
-    """التحقق من اتصال Gemini بعمل طلب بسيط. إذا وُجد api_key يُستخدم وإلا من .env"""
-    key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
-    if not key:
-        return {"ok": False, "message": "مفتاح API غير مضبوط. أدخله في الحقل أعلاه أو في ملف .env"}
+async def check_gemini_connection() -> dict:
+    """التحقق من اتصال Gemini بعمل طلب بسيط."""
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        return {"ok": False, "message": "مفتاح GEMINI_API_KEY غير مضبوط في .env"}
     try:
-        genai.configure(api_key=key)
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
             model_name=_gemini_models()[0],
             generation_config=genai.GenerationConfig(temperature=0, max_output_tokens=10),
@@ -411,9 +409,7 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
     )
 
 
-async def validate_rows_dynamic(
-    columns: list[str], records: list[dict], mode: str = "smart", gemini_api_key: str | None = None
-) -> dict:
+async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: str = "smart") -> dict:
     if not columns or not records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
@@ -438,8 +434,8 @@ async def validate_rows_dynamic(
         out["provider"] = "local"
         return out
 
-    gemini_key = (gemini_api_key or os.getenv("GEMINI_API_KEY") or "").strip()
-    if not gemini_key:
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key or not gemini_key.strip():
         out = _dynamic_fallback(columns, cleaned_records)
         out["provider"] = "local"
         out["gemini_unavailable"] = True
@@ -453,7 +449,7 @@ async def validate_rows_dynamic(
         chunk = cleaned_records[i : i + chunk_size]
         try:
             prompt = _build_dynamic_batch_prompt(columns, chunk)
-            raw = await _call_gemini_prompt(prompt, api_key=gemini_key)
+            raw = await _call_gemini_prompt(prompt)
             model_results = raw.get("results") if isinstance(raw, dict) else []
             model_results = model_results if isinstance(model_results, list) else []
 

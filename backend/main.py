@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Literal
@@ -64,10 +64,9 @@ async def health():
 
 
 @app.get("/api/gemini-status")
-async def gemini_status(request: Request):
-    """التحقق من اتصال Gemini. يقبل المفتاح من الهيدر X-Gemini-API-Key أو من .env"""
-    api_key = (request.headers.get("X-Gemini-API-Key") or "").strip() or None
-    return await check_gemini_connection(api_key=api_key)
+async def gemini_status():
+    """التحقق من اتصال Gemini بعمل طلب فعلي."""
+    return await check_gemini_connection()
 
 
 @app.post("/api/validate")
@@ -122,11 +121,8 @@ class DynamicBatchPayload(BaseModel):
 
 
 @app.post("/api/validate-batch-dynamic")
-async def validate_batch_dynamic(payload: DynamicBatchPayload, request: Request):
-    api_key = (request.headers.get("X-Gemini-API-Key") or "").strip() or None
-    return await validate_rows_dynamic(
-        payload.columns, payload.records, payload.mode, gemini_api_key=api_key
-    )
+async def validate_batch_dynamic(payload: DynamicBatchPayload):
+    return await validate_rows_dynamic(payload.columns, payload.records, payload.mode)
 
 
 if __name__ == "__main__":

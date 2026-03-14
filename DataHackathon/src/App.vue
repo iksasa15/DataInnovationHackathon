@@ -1,22 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
-import { checkGeminiStatus, getGeminiApiKey, setGeminiApiKey } from './services/api'
+import { ref, computed } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { checkGeminiStatus } from './services/api'
 
+const route = useRoute()
 const geminiChecking = ref(false)
 const geminiStatus = ref<{ ok: boolean; message: string } | null>(null)
-const apiKeyInput = ref('')
-const apiKeySaved = ref(false)
-const showKeyPanel = ref(false)
+const analysisOpen = ref(false)
 
-
-function saveApiKey() {
-  const key = apiKeyInput.value?.trim() || ''
-  setGeminiApiKey(key)
-  apiKeySaved.value = true
-  setTimeout(() => { apiKeySaved.value = false }, 2000)
-  if (!key) showKeyPanel.value = false
-}
+const isAnalysisActive = computed(() =>
+  route.path === '/excel' || route.path === '/csv'
+)
 
 async function verifyGemini() {
   geminiStatus.value = null
@@ -40,35 +34,32 @@ async function verifyGemini() {
       <nav class="nav">
         <RouterLink to="/">الرئيسية</RouterLink>
         <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
-        <RouterLink to="/excel" class="nav-highlight">📊 تحليل Excel</RouterLink>
-        <RouterLink to="/csv" class="nav-highlight">📋 تحليل CSV</RouterLink>
+        <div
+          class="nav-dropdown"
+          :class="{ 'dropdown-open': analysisOpen, 'nav-active': isAnalysisActive }"
+          @mouseenter="analysisOpen = true"
+          @mouseleave="analysisOpen = false"
+        >
+          <button
+            type="button"
+            class="nav-dropdown-trigger nav-highlight"
+            aria-haspopup="true"
+            :aria-expanded="analysisOpen"
+            @click="analysisOpen = !analysisOpen"
+          >
+            📂 تحليل
+          </button>
+          <div v-show="analysisOpen" class="nav-dropdown-menu">
+            <RouterLink to="/excel" class="nav-dropdown-item" @click="analysisOpen = false">
+              📊 تحليل Excel
+            </RouterLink>
+            <RouterLink to="/csv" class="nav-dropdown-item" @click="analysisOpen = false">
+              📋 تحليل CSV
+            </RouterLink>
+          </div>
+        </div>
         <RouterLink to="/about">من نحن</RouterLink>
         <div class="nav-gemini">
-          <div class="gemini-key-wrap">
-            <button
-              type="button"
-              class="btn-gemini btn-gemini-key"
-              @click="showKeyPanel = !showKeyPanel"
-            >
-              {{ getGeminiApiKey() ? '🔑 مفتاح محفوظ' : '➕ مفتاح API' }}
-            </button>
-            <Transition name="key-panel">
-              <div v-if="showKeyPanel" class="gemini-key-panel">
-                <input
-                  v-model="apiKeyInput"
-                  type="password"
-                  class="gemini-key-input"
-                  placeholder="أدخل مفتاح Gemini API"
-                  autocomplete="off"
-                />
-                <div class="gemini-key-actions">
-                  <button type="button" class="btn-gemini-save" @click="saveApiKey">
-                    {{ apiKeySaved ? '✓ تم الحفظ' : 'حفظ' }}
-                  </button>
-                </div>
-              </div>
-            </Transition>
-          </div>
           <button
             type="button"
             class="btn-gemini"
@@ -142,67 +133,6 @@ async function verifyGemini() {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-}
-
-.gemini-key-wrap {
-  position: relative;
-}
-
-.btn-gemini-key {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.6rem;
-}
-
-.gemini-key-panel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 0.35rem;
-  padding: 0.6rem;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  z-index: 101;
-  min-width: 220px;
-}
-
-.gemini-key-input {
-  width: 100%;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  background: var(--color-background);
-  color: var(--color-text);
-  margin-bottom: 0.5rem;
-  font-family: ui-monospace, monospace;
-}
-
-.gemini-key-input::placeholder {
-  opacity: 0.7;
-}
-
-.gemini-key-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.btn-gemini-save {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #fff;
-  background: #0e7490;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.btn-gemini-save:hover {
-  background: #0c6380;
 }
 
 .btn-gemini {
@@ -282,17 +212,6 @@ async function verifyGemini() {
   transform: translateY(-4px);
 }
 
-.key-panel-enter-active,
-.key-panel-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.key-panel-enter-from,
-.key-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
 .nav a {
   padding: 0.5rem 0.9rem;
   font-size: 0.95rem;
@@ -318,6 +237,69 @@ async function verifyGemini() {
   color: #0e7490 !important;
 }
 
+/* تحليل — قائمة منسدلة */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0e7490;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-dropdown-trigger:hover {
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.nav-dropdown.nav-active .nav-dropdown-trigger {
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.nav-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.15rem;
+  min-width: 180px;
+  padding: 0.35rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 60;
+}
+
+.nav-dropdown-item {
+  display: block;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  text-decoration: none;
+  border-radius: 0.375rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-dropdown-item:hover {
+  background: var(--color-background-soft);
+  color: #0e7490;
+}
+
+.nav-dropdown-item.router-link-active {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+
 .app-main {
   flex: 1;
 }
@@ -333,6 +315,12 @@ async function verifyGemini() {
   .nav a.router-link-active {
     background: rgba(34, 211, 238, 0.12);
   }
+  .nav-dropdown-trigger { color: #22d3ee; }
+  .nav-dropdown-trigger:hover { background: rgba(34, 211, 238, 0.12); }
+  .nav-dropdown.nav-active .nav-dropdown-trigger { background: rgba(34, 211, 238, 0.12); }
+  .nav-dropdown-item:hover,
+  .nav-dropdown-item.router-link-active { color: #22d3ee; }
+  .nav-dropdown-item.router-link-active { background: rgba(34, 211, 238, 0.12); }
   .btn-gemini {
     color: #22d3ee;
     background: rgba(34, 211, 238, 0.12);
