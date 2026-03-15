@@ -34,6 +34,13 @@ const filteredRows = computed(() => {
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
+/** خريطة تفاصيل كل صف (ملخص مشاكل + اقتراحات) لتجنب إعادة الحساب في القالب */
+const rowDetailsMap = computed(() => {
+  const m = new Map<number, ReturnType<typeof getRowDetails>>()
+  rows.value.forEach((r) => m.set(r.row_index, getRowDetails(r)))
+  return m
+})
+
 function onDrop(e: DragEvent) {
   isDragging.value = false
   const file = e.dataTransfer?.files[0]
@@ -184,6 +191,23 @@ function scoreColor(score: number) {
   if (score >= 50) return '#f59e0b'
   return '#ef4444'
 }
+
+/** ملخص المشاكل والاقتراحات للصف (لعمود التفاصيل) */
+function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problems: string[]; suggestions: string[] } {
+  const v = row.validation
+  if (!v) return { isOk: true, problems: [], suggestions: [] }
+  if (v.status === 'valid' && (!v.errors?.length && !v.suggestions?.length)) {
+    return { isOk: true, summary: v.summary || undefined, problems: [], suggestions: v.suggestions || [] }
+  }
+  const problems = (v.errors || []).map((e) => `${e.field}: ${e.message}`)
+  const suggestions = v.suggestions || []
+  return {
+    isOk: false,
+    summary: v.summary || undefined,
+    problems,
+    suggestions,
+  }
+}
 </script>
 
 <template>
@@ -286,7 +310,7 @@ function scoreColor(score: number) {
         <span class="legend-item"><span class="legend-dot dot-high"></span> خطأ حرج</span>
         <span class="legend-item"><span class="legend-dot dot-medium"></span> تحذير متوسط</span>
         <span class="legend-item"><span class="legend-dot dot-low"></span> ملاحظة خفيفة</span>
-        <span class="legend-tip">🖱 مرّر على الخلية الملوّنة لمعرفة السبب</span>
+        <span class="legend-tip">تفاصيل الأخطاء والاقتراحات في عمود «تفاصيل»</span>
       </div>
 
       <!-- Table -->
@@ -296,6 +320,7 @@ function scoreColor(score: number) {
             <tr>
               <th class="th-num">#</th>
               <th v-for="col in columns" :key="col">{{ col }}</th>
+              <th v-if="batchResult" class="th-details">تفاصيل</th>
               <th v-if="batchResult" class="th-score">درجة الثقة</th>
             </tr>
           </thead>
@@ -308,14 +333,34 @@ function scoreColor(score: number) {
                 <div class="cell-inner">
                   <span v-if="row.validation?.status === 'valid'" class="cell-val cell-valid-template">نموذج لغوي سليم — البيانات متسقة ومنطقية</span>
                   <span v-else class="cell-val">{{ row.originalData[col] }}</span>
-                  <!-- Tooltip -->
-                  <span v-if="getFieldError(row, col)" class="error-badge">!</span>
-                  <div v-if="getFieldError(row, col)" class="tooltip-box">
-                    <div class="tooltip-sev" :class="`sev-${getFieldError(row, col)!.severity}`">
-                      {{ getFieldError(row, col)!.severity === 'high' ? 'حرج' : getFieldError(row, col)!.severity === 'medium' ? 'متوسط' : 'خفيف' }}
+                </div>
+              </td>
+
+              <!-- تفاصيل: ملخص المشاكل والاقتراحات -->
+              <td v-if="batchResult" class="td-details">
+                <template v-if="!row.validation">
+                  <span class="details-na">—</span>
+                </template>
+                <div v-else class="details-cell">
+                  <template v-if="rowDetailsMap.get(row.row_index)?.isOk && !rowDetailsMap.get(row.row_index)?.problems.length">
+                    <span class="details-ok">لا توجد مشاكل</span>
+                    <p v-if="rowDetailsMap.get(row.row_index)?.summary" class="details-summary">{{ rowDetailsMap.get(row.row_index)?.summary }}</p>
+                  </template>
+                  <template v-else>
+                    <p v-if="rowDetailsMap.get(row.row_index)?.summary" class="details-summary">{{ rowDetailsMap.get(row.row_index)?.summary }}</p>
+                    <div v-if="rowDetailsMap.get(row.row_index)?.problems?.length" class="details-block">
+                      <strong class="details-label">المشاكل:</strong>
+                      <ul class="details-list">
+                        <li v-for="(p, i) in rowDetailsMap.get(row.row_index)?.problems" :key="i">{{ p }}</li>
+                      </ul>
                     </div>
-                    {{ getFieldError(row, col)!.message }}
-                  </div>
+                    <div v-if="rowDetailsMap.get(row.row_index)?.suggestions?.length" class="details-block">
+                      <strong class="details-label">اقتراحات للتعديل:</strong>
+                      <ul class="details-list details-suggestions">
+                        <li v-for="(s, i) in rowDetailsMap.get(row.row_index)?.suggestions" :key="i">{{ s }}</li>
+                      </ul>
+                    </div>
+                  </template>
                 </div>
               </td>
 
@@ -559,6 +604,23 @@ function scoreColor(score: number) {
   opacity: 0.45;
   font-size: 0.78rem;
 }
+.th-details, .td-details {
+  min-width: 220px;
+  max-width: 320px;
+  text-align: right;
+  vertical-align: top;
+  padding: 0.6rem 0.75rem;
+}
+.details-cell { font-size: 0.8rem; line-height: 1.5; }
+.details-na { color: var(--color-text); opacity: 0.4; }
+.details-ok { color: #047857; font-weight: 500; }
+.details-summary { margin: 0 0 0.4rem 0; color: var(--color-text); opacity: 0.9; }
+.details-block { margin-top: 0.5rem; }
+.details-block:first-of-type { margin-top: 0; }
+.details-label { display: block; font-size: 0.75rem; color: var(--color-heading); margin-bottom: 0.25rem; }
+.details-list { margin: 0; padding-right: 1rem; list-style: disc; }
+.details-list li { margin-bottom: 0.2rem; }
+.details-suggestions { color: #0e7490; }
 .th-score, .td-score { text-align: center; width: 90px; }
 
 .data-table tbody tr {

@@ -61,6 +61,16 @@ export async function checkGeminiStatus(): Promise<GeminiStatus> {
   return response.json()
 }
 
+export async function setGeminiApiKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/api/gemini-api-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey }),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
 export interface BatchRecord extends FormData {
   row_index: number
 }

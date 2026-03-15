@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { checkGeminiStatus } from './services/api'
+import { checkGeminiStatus, setGeminiApiKey } from './services/api'
 
 const route = useRoute()
 const geminiChecking = ref(false)
 const geminiStatus = ref<{ ok: boolean; message: string } | null>(null)
 const analysisOpen = ref(false)
+const geminiApiKey = ref('')
+const geminiKeySaving = ref(false)
+const geminiKeyMessage = ref<{ ok: boolean; message: string } | null>(null)
 
 const isAnalysisActive = computed(() =>
   route.path === '/excel' || route.path === '/csv'
@@ -14,6 +17,7 @@ const isAnalysisActive = computed(() =>
 
 async function verifyGemini() {
   geminiStatus.value = null
+  geminiKeyMessage.value = null
   geminiChecking.value = true
   try {
     geminiStatus.value = await checkGeminiStatus()
@@ -21,6 +25,21 @@ async function verifyGemini() {
     geminiStatus.value = { ok: false, message: 'فشل الاتصال بالخادم. تأكد أن الـ backend يعمل.' }
   } finally {
     geminiChecking.value = false
+  }
+}
+
+async function saveGeminiKey() {
+  geminiKeyMessage.value = null
+  geminiStatus.value = null
+  geminiKeySaving.value = true
+  try {
+    const res = await setGeminiApiKey(geminiApiKey.value)
+    geminiKeyMessage.value = res
+    if (res.ok) geminiApiKey.value = ''
+  } catch (e) {
+    geminiKeyMessage.value = { ok: false, message: 'فشل الاتصال بالخادم' }
+  } finally {
+    geminiKeySaving.value = false
   }
 }
 </script>
@@ -60,6 +79,25 @@ async function verifyGemini() {
         </div>
         <RouterLink to="/about">من نحن</RouterLink>
         <div class="nav-gemini">
+          <div class="gemini-api-row">
+            <input
+              v-model="geminiApiKey"
+              type="password"
+              class="input-gemini-api"
+              placeholder="مفتاح Gemini API"
+              autocomplete="off"
+              @keydown.enter="saveGeminiKey"
+            />
+            <button
+              type="button"
+              class="btn-gemini-save"
+              :disabled="geminiKeySaving || !geminiApiKey.trim()"
+              @click="saveGeminiKey"
+            >
+              <span v-if="geminiKeySaving" class="btn-gemini-spinner"></span>
+              {{ geminiKeySaving ? '…' : 'حفظ' }}
+            </button>
+          </div>
           <button
             type="button"
             class="btn-gemini"
@@ -70,8 +108,8 @@ async function verifyGemini() {
             {{ geminiChecking ? 'جاري التحقق…' : '🔗 اتصال Gemini' }}
           </button>
           <Transition name="gemini-msg">
-            <div v-if="geminiStatus" class="gemini-status" :class="geminiStatus.ok ? 'gemini-ok' : 'gemini-fail'">
-              {{ geminiStatus.message }}
+            <div v-if="geminiKeyMessage ?? geminiStatus" class="gemini-status" :class="(geminiKeyMessage ?? geminiStatus)?.ok ? 'gemini-ok' : 'gemini-fail'">
+              {{ (geminiKeyMessage ?? geminiStatus)?.message }}
             </div>
           </Transition>
         </div>
@@ -133,6 +171,62 @@ async function verifyGemini() {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gemini-api-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.input-gemini-api {
+  width: 180px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.input-gemini-api::placeholder {
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.input-gemini-api:focus {
+  outline: none;
+  border-color: #0e7490;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+}
+
+.btn-gemini-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+  background: #0e7490;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+
+.btn-gemini-save:hover:not(:disabled) {
+  background: #0c6380;
+}
+
+.btn-gemini-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-gemini {
@@ -331,6 +425,9 @@ async function verifyGemini() {
     border-color: #22d3ee;
   }
   .btn-gemini-spinner { border-top-color: #22d3ee; }
+  .input-gemini-api:focus { border-color: #22d3ee; box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2); }
+  .btn-gemini-save { background: #0891b2; }
+  .btn-gemini-save:hover:not(:disabled) { background: #0e7490; }
   .gemini-ok { background: #064e3b; color: #6ee7b7; border-color: #10b981; }
   .gemini-fail { background: #7f1d1d; color: #fca5a5; border-color: #ef4444; }
 }

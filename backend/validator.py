@@ -2,12 +2,28 @@ import json
 import os
 import asyncio
 import difflib
-from typing import Any
+from typing import Any, Optional
 
 from openai import AsyncOpenAI
 import google.generativeai as genai
 
 from prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
+
+# مفتاح Gemini المعيّن من الواجهة (يُفضّل على .env للجلسة الحالية)
+_gemini_api_key_override: Optional[str] = None
+
+
+def set_gemini_api_key(api_key: Optional[str]) -> None:
+    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي)."""
+    global _gemini_api_key_override
+    _gemini_api_key_override = (api_key or "").strip() or None
+
+
+def get_gemini_api_key() -> str:
+    """مفتاح Gemini: من التعيين في الواجهة أولاً، وإلا من .env."""
+    if _gemini_api_key_override:
+        return _gemini_api_key_override
+    return (os.getenv("GEMINI_API_KEY") or "").strip()
 
 
 def _build_gemini_prompt(form_data: dict) -> str:
@@ -61,7 +77,7 @@ def _gemini_models() -> list[str]:
 
 
 async def _call_gemini_prompt(prompt: str) -> dict:
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_gemini_api_key()
     genai.configure(api_key=api_key)
 
     last_exc = None
@@ -98,7 +114,7 @@ async def _call_gemini(form_data: dict) -> dict:
 
 async def check_gemini_connection() -> dict:
     """التحقق من اتصال Gemini بعمل طلب بسيط."""
-    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    api_key = get_gemini_api_key()
     if not api_key:
         return {"ok": False, "message": "مفتاح GEMINI_API_KEY غير مضبوط في .env"}
     try:
@@ -141,7 +157,7 @@ async def validate_form(raw_data: dict) -> dict:
     if len(clean) < 2:
         return _empty_result()
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_key = get_gemini_api_key()
     groq_key = os.getenv("GROQ_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
 
@@ -271,12 +287,48 @@ def _compute_stats(results: list[dict]) -> dict:
     }
 
 
+def _is_missing_value(value: Any) -> bool:
+    """هل القيمة تعتبر مفقودة (فارغة أو غير صالحة للتحليل)."""
+    if value is None:
+        return True
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and value != value:  # NaN
+            return True
+        return False  # 0 أو أي عدد نعتبره موجوداً
+    return not str(value).strip()
+
+
+def _is_important_column(col_norm: str) -> bool:
+    """حقول يُفضّل عدم تركها فارغة في الاستبيان."""
+    keywords = (
+        "اسم", "عمر", "سن", "age", "مسمى", "وظيف", "job", "مؤهل", "تعليم", "education",
+        "راتب", "salary", "خبرة", "experience", "جنس", "gender", "حالة", "اجتماع", "marital",
+        "قطاع", "sector", "أبناء", "تابع", "children"
+    )
+    return any(kw in col_norm for kw in keywords)
+
+
 def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
     results = []
     for rec in records:
         row_index = int(rec.get("row_index", 0))
         errors = []
+        suggestions = []
         col_norms = {col: _norm_text(col) for col in columns}
+
+        # معالج القيم المفقودة: رصد الحقول المهمة الفارغة وإضافة اقتراح استكمال
+        for col in columns:
+            value = rec.get(col)
+            col_norm = col_norms[col]
+            if _is_missing_value(value) and _is_important_column(col_norm):
+                errors.append(
+                    {
+                        "field": col,
+                        "message": f"القيمة مفقودة في الحقل «{col}»",
+                        "severity": "medium",
+                    }
+                )
+                suggestions.append(f"أكمل حقل «{col}» بقيمة مناسبة")
 
         for col in columns:
             value = rec.get(col)
@@ -289,14 +341,17 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
                     errors.append(
                         {"field": col, "message": f"القيمة ({value}) في '{col}' غير منطقية", "severity": "high"}
                     )
+                    suggestions.append(f"صحّح حقل «{col}» ليكون بين 0 و 100")
                 elif value < 0:
                     errors.append(
                         {"field": col, "message": f"القيمة ({value}) في '{col}' سالبة", "severity": "medium"}
                     )
+                    suggestions.append(f"صحّح قيمة «{col}» لتكون عدداً موجباً")
                 elif abs(value) > 1_000_000_000:
                     errors.append(
                         {"field": col, "message": f"القيمة في '{col}' كبيرة جداً وقد تكون خطأ", "severity": "high"}
                     )
+                    suggestions.append(f"راجع قيمة «{col}» — قد يكون هناك خطأ إدخال (مثل فواصل أو وحدات)")
                 continue
 
             value_str = str(value).strip() if value is not None else ""
@@ -319,6 +374,7 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
                                 "severity": "high",
                             }
                         )
+                        suggestions.append("راجع المؤهل العلمي أو المسمى الوظيفي ليتناسبا مع بعضهما")
             if "مسمى" in col_norm or "وظيف" in col_norm:
                 edu_col = next((c for c in columns if "مؤهل" in col_norms[c] or "تعليم" in col_norms[c]), None)
                 if edu_col:
@@ -334,6 +390,7 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
                                 "severity": "high",
                             }
                         )
+                        suggestions.append("راجع المسمى الوظيفي أو المؤهل العلمي ليتوافقا مع بعضهما")
             if "حالة" in col_norm and "اجتماع" in col_norm:
                 if "أعزب" in value_str or "عزب" in value_str:
                     children_col = next(
@@ -351,20 +408,24 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
                                         "severity": "medium",
                                     }
                                 )
+                                suggestions.append("تحقق من الحالة الاجتماعية وعدد الأبناء مع المستجيب")
                         except (TypeError, ValueError):
                             pass
 
         penalty = sum({"high": 35, "medium": 20, "low": 8}.get(e["severity"], 10) for e in errors)
         score = max(0, 100 - penalty)
         status = "valid" if not errors else ("warning" if score >= 50 else "error")
+        if not suggestions and errors:
+            suggestions = ["راجع الحقول المميزة في هذا الصف"]
+        suggestions = list(dict.fromkeys(suggestions))[:6]  # إزالة التكرار وحد أقصى 6
         results.append(
             {
                 "row_index": row_index,
                 "confidence_score": score,
                 "status": status,
                 "errors": errors,
-                "suggestions": [] if not errors else ["راجع الحقول المميزة في هذا الصف"],
-                "summary": "البيانات تبدو منطقية" if not errors else f"رُصد {len(errors)} تعارضات محتملة",
+                "suggestions": suggestions,
+                "summary": "البيانات تبدو منطقية" if not errors else f"رُصد {len(errors)} تعارضات/قيم مفقودة محتملة",
             }
         )
 
@@ -378,10 +439,16 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
         "المطلوب — تحليل كل شيء وليس الأرقام فقط:\n"
         "• الأرقام: عمر، رواتب، سنوات خبرة، أعداد — تحقق من المنطق والحدود.\n"
         "• النصوص والتسميات: المسمى الوظيفي، المؤهل العلمي، الجنس، الحالة الاجتماعية، نوع السكن، جهة العمل، أي تسمية أو تصنيف — تحقق من التناسق بينها (مثلاً مؤهل «ابتدائي» مع مسمى «طبيب»، أو «أعزب» مع «عدد أبناء» كبير، أو عمر صغير مع منصب قيادي).\n"
-        "• أي حقل آخر: أسماء، فئات، تواريخ، نصوص حرة — راعِ التناسق مع باقي حقول نفس الصف.\n"
-        "1) اكتشاف القيم غير المنطقية أو المتناقضة سياقياً في كل الحقول.\n"
-        "2) إرجاع الأخطاء على مستوى الحقول مع ذكر اسم الحقل كما هو EXACT من قائمة الأعمدة.\n"
-        "3) إرجاع درجة ثقة لكل صف من 0 إلى 100.\n\n"
+        "• أي حقل آخر: أسماء، فئات، تواريخ، نصوص حرة — راعِ التناسق مع باقي حقول نفس الصف.\n\n"
+        "معالج القيم المفقودة والأخطاء:\n"
+        "• القيمة المفقودة: إذا كان حقل مهماً فارغاً أو غير مكتمل، أضفه في errors بشدة مناسبة (مثلاً severity: \"medium\") مع message يوضح أن القيمة مفقودة، وفي suggestions أضف اقتراحاً لاستكماله (مثل: \"أكمل حقل [اسم الحقل] بقيمة مناسبة\").\n"
+        "• الحقول التي فيها أخطاء: لكل خطأ في errors قدّم في suggestions اقتراحاً واضحاً لتعديل القيمة أو تصحيحها (مثلاً: \"صحّح العمر ليكون متناسقاً مع سنوات الخبرة\" أو \"راجع المؤهل العلمي ليتوافق مع المسمى الوظيفي\").\n"
+        "• الاقتراحات: يجب أن تكون عملية وقابلة للتطبيق — أي تخبر المستخدم ماذا يفعل لمعالجة المشكلة أو القيمة المفقودة.\n\n"
+        "1) اكتشاف القيم المفقودة (حقول فارغة أو شبه فارغة) واعتبارها مشكلة مع اقتراح استكمال.\n"
+        "2) اكتشاف القيم غير المنطقية أو المتناقضة سياقياً في كل الحقول.\n"
+        "3) إرجاع الأخطاء على مستوى الحقول مع ذكر اسم الحقل كما هو EXACT من قائمة الأعمدة.\n"
+        "4) إرجاع suggestions تحتوي دائماً اقتراحات للتعديل أو استكمال القيم المفقودة.\n"
+        "5) إرجاع درجة ثقة لكل صف من 0 إلى 100.\n\n"
         "قائمة الأعمدة (استخدم الأسماء كما هي دون ترجمة):\n"
         f"{json.dumps(columns, ensure_ascii=False)}\n\n"
         "الصفوف للتحليل:\n"
@@ -396,11 +463,11 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
         '      "errors": [\n'
         "        {\n"
         '          "field": "<اسم عمود من القائمة كما هو>",\n'
-        '          "message": "<سبب التعارض>",\n'
+        '          "message": "<سبب التعارض أو وصف القيمة المفقودة>",\n'
         '          "severity": "low|medium|high"\n'
         "        }\n"
         "      ],\n"
-        '      "suggestions": ["..."],\n'
+        '      "suggestions": ["<اقتراح تعديل أو استكمال قيمة مفقودة 1>", "..."],\n'
         '      "summary": "..."\n'
         "    }\n"
         "  ]\n"
@@ -434,8 +501,8 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
         out["provider"] = "local"
         return out
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key or not gemini_key.strip():
+    gemini_key = get_gemini_api_key()
+    if not gemini_key:
         out = _dynamic_fallback(columns, cleaned_records)
         out["provider"] = "local"
         out["gemini_unavailable"] = True

@@ -5,7 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Literal
 
-from validator import validate_form, validate_form_quick, validate_rows_dynamic, check_gemini_connection
+from validator import (
+    validate_form,
+    validate_form_quick,
+    validate_rows_dynamic,
+    check_gemini_connection,
+    set_gemini_api_key,
+)
 
 load_dotenv()
 
@@ -41,9 +47,14 @@ class FormData(BaseModel):
     children_count: Optional[int] = None
 
 
+class GeminiApiKeyPayload(BaseModel):
+    api_key: str = ""
+
+
 @app.get("/api/health")
 async def health():
-    has_gemini = bool((os.getenv("GEMINI_API_KEY") or "").strip())
+    from validator import get_gemini_api_key
+    has_gemini = bool(get_gemini_api_key())
     has_groq = bool(os.getenv("GROQ_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
     configured = has_gemini or has_groq or has_openai
@@ -67,6 +78,13 @@ async def health():
 async def gemini_status():
     """التحقق من اتصال Gemini بعمل طلب فعلي."""
     return await check_gemini_connection()
+
+
+@app.post("/api/gemini-api-key")
+async def set_gemini_key(payload: GeminiApiKeyPayload):
+    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي)."""
+    set_gemini_api_key(payload.api_key or "")
+    return {"ok": True, "message": "تم حفظ المفتاح"}
 
 
 @app.post("/api/validate")
