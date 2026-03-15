@@ -1,19 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { ref } from 'vue'
+import { RouterLink, RouterView } from 'vue-router'
 import { checkGeminiStatus, setGeminiApiKey } from './services/api'
 
-const route = useRoute()
 const geminiChecking = ref(false)
 const geminiStatus = ref<{ ok: boolean; message: string } | null>(null)
-const analysisOpen = ref(false)
 const geminiApiKey = ref('')
 const geminiKeySaving = ref(false)
 const geminiKeyMessage = ref<{ ok: boolean; message: string } | null>(null)
-
-const isAnalysisActive = computed(() =>
-  route.path === '/excel' || route.path === '/csv'
-)
 
 async function verifyGemini() {
   geminiStatus.value = null
@@ -53,30 +47,7 @@ async function saveGeminiKey() {
       <nav class="nav">
         <RouterLink to="/">الرئيسية</RouterLink>
         <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
-        <div
-          class="nav-dropdown"
-          :class="{ 'dropdown-open': analysisOpen, 'nav-active': isAnalysisActive }"
-          @mouseenter="analysisOpen = true"
-          @mouseleave="analysisOpen = false"
-        >
-          <button
-            type="button"
-            class="nav-dropdown-trigger nav-highlight"
-            aria-haspopup="true"
-            :aria-expanded="analysisOpen"
-            @click="analysisOpen = !analysisOpen"
-          >
-            📂 تحليل
-          </button>
-          <div v-show="analysisOpen" class="nav-dropdown-menu">
-            <RouterLink to="/excel" class="nav-dropdown-item" @click="analysisOpen = false">
-              📊 تحليل Excel
-            </RouterLink>
-            <RouterLink to="/csv" class="nav-dropdown-item" @click="analysisOpen = false">
-              📋 تحليل CSV
-            </RouterLink>
-          </div>
-        </div>
+        <RouterLink to="/analysis" class="nav-highlight">📂 تحليل الملف</RouterLink>
         <RouterLink to="/about">من نحن</RouterLink>
         <div class="nav-gemini">
           <div class="gemini-api-row">

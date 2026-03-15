@@ -308,26 +308,26 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 <template>
   <div class="excel-page">
     <div class="page-head">
-      <h1 class="page-title">تحليل ملف Excel</h1>
+      <h1 class="page-title">تحليل الملف</h1>
       <p class="page-desc">
-        ارفع ملف استبيان وسيكتشف <strong>الحارس الدلالي</strong> الأخطاء المنطقية ويلوّن الخلايا المشبوهة تلقائياً.
+        ارفع ملف Excel أو CSV (استبيان، جداول بيانات) وسيكتشف <strong>الحارس الدلالي</strong> الأخطاء المنطقية ويلوّن الخلايا المشبوهة. الملاحظات والتقارير تظهر بالعربية حتى لو كانت البيانات بالإنجليزية.
       </p>
     </div>
 
-    <!-- Upload zone -->
+    <!-- Upload zone: خانة واحدة لـ Excel و CSV -->
     <div v-if="!rows.length" class="upload-zone"
       :class="{ 'dragging': isDragging }"
       @dragover.prevent="isDragging = true"
       @dragleave="isDragging = false"
       @drop.prevent="onDrop">
       <div class="upload-icon">📂</div>
-      <p class="upload-title">اسحب ملف Excel هنا</p>
+      <p class="upload-title">اسحب ملف Excel أو CSV هنا</p>
       <p class="upload-sub">أو</p>
       <label class="btn btn-primary upload-btn">
         اختر ملفاً
         <input type="file" accept=".xlsx,.xls,.csv" hidden @change="onFileInput" />
       </label>
-      <p class="upload-note">يدعم: xlsx · xls · csv</p>
+      <p class="upload-note">يقبل: Excel (xlsx · xls) و CSV — البيانات بالإنجليزي أو العربي</p>
     </div>
 
     <!-- File loaded: preview + actions -->

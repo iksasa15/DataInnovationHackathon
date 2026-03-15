@@ -15,15 +15,12 @@ const router = createRouter({
       component: () => import('../views/SurveyView.vue'),
     },
     {
-      path: '/excel',
-      name: 'excel',
+      path: '/analysis',
+      name: 'analysis',
       component: () => import('../views/ExcelView.vue'),
     },
-    {
-      path: '/csv',
-      name: 'csv',
-      component: () => import('../views/CsvView.vue'),
-    },
+    { path: '/excel', redirect: '/analysis' },
+    { path: '/csv', redirect: '/analysis' },
     {
       path: '/about',
       name: 'about',
