@@ -16,6 +16,7 @@ interface ValidationResult {
 interface RowData {
   row_index: number
   originalData: Record<string, any>
+  editableData: Record<string, any>
   validation: (ValidationResult & { row_index: number }) | null
 }
 
@@ -118,6 +119,7 @@ function processFile(file: File) {
     rows.value = rawRows.map((row, i) => ({
       row_index: i,
       originalData: row,
+      editableData: { ...row },
       validation: null,
     }))
 
@@ -134,7 +136,7 @@ async function analyzeAll() {
   try {
     const payload = {
       columns: columns.value,
-      records: rows.value.map((r) => ({ row_index: r.row_index, ...r.originalData })),
+      records: rows.value.map((r) => ({ row_index: r.row_index, ...(r.editableData ?? r.originalData) })),
       mode: 'smart',
     }
 
@@ -143,6 +145,7 @@ async function analyzeAll() {
     const resultMap = new Map(batchResult.value.results.map((r) => [r.row_index, r]))
     rows.value = rows.value.map((r) => ({
       ...r,
+      editableData: r.editableData ?? { ...r.originalData },
       validation: resultMap.get(r.row_index) ?? null,
     }))
   } finally {
@@ -191,6 +194,96 @@ function scoreColor(score: number) {
   if (score >= 80) return '#10b981'
   if (score >= 50) return '#f59e0b'
   return '#ef4444'
+}
+
+/** قائمة التعديلات (صف، عمود، قديم، جديد) */
+const modifications = computed(() => {
+  const out: { row_index: number; col: string; oldVal: string; newVal: string }[] = []
+  for (const row of rows.value) {
+    const orig = row.originalData
+    const edit = row.editableData ?? orig
+    for (const col of columns.value) {
+      const o = orig[col] != null ? String(orig[col]) : ''
+      const n = edit[col] != null ? String(edit[col]) : ''
+      if (o !== n) out.push({ row_index: row.row_index, col, oldVal: o, newVal: n })
+    }
+  }
+  return out
+})
+
+function buildReportText(): string {
+  const lines: string[] = []
+  lines.push('=== تقرير التحليل والتعديلات ===')
+  lines.push('')
+  if (batchResult.value?.stats) {
+    const s = batchResult.value.stats
+    lines.push('--- ملخص التحليل ---')
+    lines.push(`إجمالي السجلات: ${s.total}`)
+    lines.push(`بها أخطاء: ${s.errors}`)
+    lines.push(`تحذيرات: ${s.warnings}`)
+    lines.push(`سليمة: ${s.valid}`)
+    lines.push(`متوسط الثقة: ${s.avg_confidence}%`)
+    lines.push('')
+  }
+  lines.push('--- الأخطاء والتحذيرات المرصودة (حسب الصف) ---')
+  let hasIssues = false
+  for (const row of rows.value) {
+    if (!row.validation || (row.validation.status === 'valid' && !row.validation.errors?.length)) continue
+    hasIssues = true
+    const d = getRowDetails(row)
+    lines.push(`صف ${row.row_index + 1}: ${row.validation.status === 'error' ? 'خطأ' : 'تحذير'} — ${d.summary ?? row.validation.summary ?? ''}`)
+    for (const p of d.problems) lines.push(`  • ${p}`)
+  }
+  if (!hasIssues) lines.push('لا توجد أخطاء أو تحذيرات مرصودة.')
+  lines.push('')
+  lines.push('--- التعديلات التي أجراها المستخدم ---')
+  if (modifications.value.length === 0) {
+    lines.push('لم يتم تعديل أي خلية.')
+  } else {
+    for (const m of modifications.value) {
+      lines.push(`صف ${m.row_index + 1}، العمود «${m.col}»: من «${m.oldVal}» إلى «${m.newVal}»`)
+    }
+  }
+  return lines.join('\n')
+}
+
+function downloadBlob(blob: Blob, name: string) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function exportFileAndReport() {
+  const isCsv = fileName.value.toLowerCase().endsWith('.csv')
+  const baseName = fileName.value.replace(/\.[^.]+$/, '') || 'export'
+
+  const dataRows = rows.value.map((r) => r.editableData ?? r.originalData)
+  const reportText = buildReportText()
+
+  if (isCsv) {
+    const header = columns.value.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
+    const csvLines = [header]
+    for (const row of dataRows) {
+      const cells = columns.value.map((c) => {
+        const v = row[c]
+        const s = v != null ? String(v) : ''
+        return `"${s.replace(/"/g, '""')}"`
+      })
+      csvLines.push(cells.join(','))
+    }
+    const csv = '\uFEFF' + csvLines.join('\r\n')
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${baseName}_معدل.csv`)
+  } else {
+    const ws = XLSX.utils.json_to_sheet(dataRows, { header: columns.value })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    const xlsxBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([xlsxBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${baseName}_معدل.xlsx`)
+  }
+
+  downloadBlob(new Blob([reportText], { type: 'text/plain;charset=utf-8' }), `${baseName}_تقرير.txt`)
 }
 
 /** ملخص المشاكل والاقتراحات للصف (لعمود التفاصيل) */
@@ -253,6 +346,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             @click="analyzeAll">
             <span v-if="isProcessing" class="btn-spinner"></span>
             {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بـ Gemini' }}
+          </button>
+          <button class="btn btn-export btn-sm" @click="exportFileAndReport" title="تصدير الملف المعدّل مع التقرير">
+            💾 حفظ وتصدير + التقرير
           </button>
         </div>
       </div>
@@ -332,7 +428,11 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
               <td v-for="col in columns" :key="col"
                 :class="['data-cell', getCellClass(row, col)]">
                 <div class="cell-inner">
-                  <span class="cell-val">{{ row.originalData[col] }}</span>
+                  <input
+                    v-model="row.editableData[col]"
+                    type="text"
+                    class="cell-input"
+                  />
                 </div>
               </td>
 
@@ -742,6 +842,30 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   max-width: 160px;
   display: inline-block;
 }
+.cell-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  text-align: inherit;
+}
+.cell-input:hover { border-color: var(--color-border); }
+.cell-input:focus {
+  outline: none;
+  border-color: #0e7490;
+  background: var(--color-background);
+}
+.btn-export {
+  background: #047857;
+  color: #fff;
+  border: none;
+}
+.btn-export:hover { background: #065f46; }
 /* Error cell colors */
 .cell-error-high {
   background: rgba(239, 68, 68, 0.12) !important;

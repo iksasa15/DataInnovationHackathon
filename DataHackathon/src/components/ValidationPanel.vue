@@ -49,7 +49,7 @@ const severityMeta = (s: string) => {
       <div>
         <h2 class="panel-title">الحارس الدلالي</h2>
         <span :class="['mode-badge', mode === 'live' ? 'mode-live' : 'mode-demo']">
-          {{ mode === 'live' ? '● مباشر — LLM' : '● وضع تجريبي' }}
+          {{ mode === 'live' ? '● تحليل بنموذج لغوي' : '● وضع تجريبي' }}
         </span>
       </div>
     </div>
