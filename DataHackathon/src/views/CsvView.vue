@@ -27,6 +27,7 @@ const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
 const uploadError = ref('')
+const detailsModalRow = ref<number | null>(null)
 
 const filteredRows = computed(() => {
   if (filter.value === 'all') return rows.value
@@ -329,36 +330,24 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
               <td v-for="col in columns" :key="col"
                 :class="['data-cell', getCellClass(row, col)]">
                 <div class="cell-inner">
-                  <span v-if="row.validation?.status === 'valid'" class="cell-val cell-valid-template">نموذج لغوي سليم — البيانات متسقة ومنطقية</span>
-                  <span v-else class="cell-val">{{ row.originalData[col] }}</span>
+                  <span class="cell-val">{{ row.originalData[col] }}</span>
                 </div>
               </td>
-              <!-- تفاصيل: ملخص المشاكل والاقتراحات -->
+              <!-- تفاصيل: زر يفتح نافذة -->
               <td v-if="batchResult" class="td-details">
                 <template v-if="!row.validation">
                   <span class="details-na">—</span>
                 </template>
-                <div v-else class="details-cell">
-                  <template v-if="rowDetailsMap.get(row.row_index)?.isOk && !rowDetailsMap.get(row.row_index)?.problems.length">
-                    <span class="details-ok">لا توجد مشاكل</span>
-                    <p v-if="rowDetailsMap.get(row.row_index)?.summary" class="details-summary">{{ rowDetailsMap.get(row.row_index)?.summary }}</p>
-                  </template>
-                  <template v-else>
-                    <p v-if="rowDetailsMap.get(row.row_index)?.summary" class="details-summary">{{ rowDetailsMap.get(row.row_index)?.summary }}</p>
-                    <div v-if="rowDetailsMap.get(row.row_index)?.problems?.length" class="details-block">
-                      <strong class="details-label">المشاكل:</strong>
-                      <ul class="details-list">
-                        <li v-for="(p, i) in rowDetailsMap.get(row.row_index)?.problems" :key="i">{{ p }}</li>
-                      </ul>
-                    </div>
-                    <div v-if="rowDetailsMap.get(row.row_index)?.suggestions?.length" class="details-block">
-                      <strong class="details-label">اقتراحات للتعديل:</strong>
-                      <ul class="details-list details-suggestions">
-                        <li v-for="(s, i) in rowDetailsMap.get(row.row_index)?.suggestions" :key="i">{{ s }}</li>
-                      </ul>
-                    </div>
-                  </template>
-                </div>
+                <template v-else>
+                  <button
+                    type="button"
+                    class="btn-details"
+                    :class="{ 'has-issues': rowDetailsMap.get(row.row_index)?.problems?.length }"
+                    @click="detailsModalRow = row.row_index"
+                  >
+                    تفاصيل
+                  </button>
+                </template>
               </td>
               <td v-if="batchResult" class="td-score">
                 <span v-if="row.validation" class="score-badge"
@@ -371,6 +360,40 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           </tbody>
         </table>
       </div>
+
+      <Teleport to="body">
+        <div v-if="detailsModalRow !== null" class="details-overlay" @click.self="detailsModalRow = null">
+          <div class="details-modal">
+            <div class="details-modal-head">
+              <h3>تفاصيل الصف {{ detailsModalRow !== null ? detailsModalRow + 1 : '' }}</h3>
+              <button type="button" class="details-modal-close" aria-label="إغلاق" @click="detailsModalRow = null">×</button>
+            </div>
+            <div class="details-modal-body">
+              <template v-if="rowDetailsMap.get(detailsModalRow!)">
+                <template v-if="rowDetailsMap.get(detailsModalRow!)?.isOk && !rowDetailsMap.get(detailsModalRow!)?.problems?.length">
+                  <p class="details-ok">لا توجد مشاكل</p>
+                  <p v-if="rowDetailsMap.get(detailsModalRow!)?.summary" class="details-summary">{{ rowDetailsMap.get(detailsModalRow!)?.summary }}</p>
+                </template>
+                <template v-else>
+                  <p v-if="rowDetailsMap.get(detailsModalRow!)?.summary" class="details-summary">{{ rowDetailsMap.get(detailsModalRow!)?.summary }}</p>
+                  <div v-if="rowDetailsMap.get(detailsModalRow!)?.problems?.length" class="details-block">
+                    <strong class="details-label">المشاكل:</strong>
+                    <ul class="details-list">
+                      <li v-for="(p, i) in rowDetailsMap.get(detailsModalRow!)?.problems" :key="i">{{ p }}</li>
+                    </ul>
+                  </div>
+                  <div v-if="rowDetailsMap.get(detailsModalRow!)?.suggestions?.length" class="details-block">
+                    <strong class="details-label">اقتراحات للتعديل:</strong>
+                    <ul class="details-list details-suggestions">
+                      <li v-for="(s, i) in rowDetailsMap.get(detailsModalRow!)?.suggestions" :key="i">{{ s }}</li>
+                    </ul>
+                  </div>
+                </template>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>
@@ -598,23 +621,87 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   font-size: 0.78rem;
 }
 .th-details, .td-details {
-  min-width: 220px;
-  max-width: 320px;
-  text-align: right;
-  vertical-align: top;
-  padding: 0.6rem 0.75rem;
+  text-align: center;
+  padding: 0.6rem 0.85rem;
+  width: 1%;
+  white-space: nowrap;
 }
-.details-cell { font-size: 0.8rem; line-height: 1.5; }
-.details-na { color: var(--color-text); opacity: 0.4; }
-.details-ok { color: #047857; font-weight: 500; }
-.details-summary { margin: 0 0 0.4rem 0; color: var(--color-text); opacity: 0.9; }
-.details-block { margin-top: 0.5rem; }
+.details-na { color: var(--color-text); opacity: 0.4; font-size: 0.875rem; }
+.btn-details {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #0e7490;
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-details:hover { background: rgba(6, 182, 212, 0.2); border-color: #0e7490; }
+.btn-details.has-issues { color: #b45309; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
+.btn-details.has-issues:hover { background: rgba(245, 158, 11, 0.2); }
+.details-ok { color: #047857; font-weight: 500; margin: 0 0 0.5rem 0; }
+.details-summary { margin: 0 0 0.5rem 0; color: var(--color-text); opacity: 0.9; line-height: 1.5; }
+.details-block { margin-top: 0.75rem; }
 .details-block:first-of-type { margin-top: 0; }
 .details-label { display: block; font-size: 0.75rem; color: var(--color-heading); margin-bottom: 0.25rem; }
-.details-list { margin: 0; padding-right: 1rem; list-style: disc; }
-.details-list li { margin-bottom: 0.2rem; }
+.details-list { margin: 0; padding-right: 1.25rem; list-style: disc; }
+.details-list li { margin-bottom: 0.25rem; }
 .details-suggestions { color: #0e7490; }
 .th-score, .td-score { text-align: center; width: 90px; }
+
+.details-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.details-modal {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  max-width: 420px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.details-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background-mute);
+}
+.details-modal-head h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-heading); }
+.details-modal-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.details-modal-close:hover { background: var(--color-background-soft); color: var(--color-heading); }
+.details-modal-body {
+  padding: 1rem;
+  overflow-y: auto;
+  font-size: 0.875rem;
+}
 
 .data-table tbody tr {
   border-bottom: 1px solid var(--color-border);
@@ -641,12 +728,6 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   max-width: 160px;
   display: inline-block;
 }
-.cell-valid-template {
-  color: #047857;
-  font-weight: 500;
-  font-style: italic;
-}
-
 .cell-error-high {
   background: rgba(239, 68, 68, 0.12) !important;
   border-right: 3px solid #ef4444;
