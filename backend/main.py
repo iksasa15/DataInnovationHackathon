@@ -43,7 +43,7 @@ class FormData(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    has_gemini = bool(os.getenv("GEMINI_API_KEY") or "").strip()
+    has_gemini = bool((os.getenv("GEMINI_API_KEY") or "").strip())
     has_groq = bool(os.getenv("GROQ_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
     configured = has_gemini or has_groq or has_openai

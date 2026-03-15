@@ -30,8 +30,32 @@ const EDUCATION_OPTIONS = [
   'بكالوريوس', 'ماجستير', 'دكتوراه',
 ]
 const SECTOR_OPTIONS = ['حكومي', 'خاص', 'أهلي / غير ربحي', 'لا ينطبق']
-const MARITAL_OPTIONS = ['أعزب', 'متزوج', 'مطلق', 'أرمل', 'أعزبة', 'متزوجة', 'مطلقة', 'أرملة']
+const MARITAL_OPTIONS = ['أعزب', 'متزوج', 'مطلق', 'أرمل', 'عزباء', 'متزوجة', 'مطلقة', 'أرملة']
 const GENDER_OPTIONS = ['ذكر', 'أنثى']
+
+const RANDOM_NAMES = ['أحمد محمد', 'سارة علي', 'خالد عبدالله', 'نورة سعد', 'فهد حسن', 'مريم إبراهيم', 'عمر يوسف', 'هند عبدالرحمن', 'تركي فيصل', 'لمى ناصر']
+const RANDOM_JOBS = ['مهندس برمجيات', 'مدير مالي', 'طبيب عام', 'معلم', 'محاسب', 'مدير تسويق', 'ممرض', 'موظف إداري', 'فني مختبر', 'باحث']
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function generateRandomData() {
+  const gender = pick(GENDER_OPTIONS)
+  form.value = {
+    name: pick(RANDOM_NAMES),
+    age: 22 + Math.floor(Math.random() * 35),
+    gender,
+    education: pick(EDUCATION_OPTIONS),
+    job_title: pick(RANDOM_JOBS),
+    years_experience: Math.floor(Math.random() * 20),
+    monthly_salary: 5000 + Math.floor(Math.random() * 25000),
+    sector: pick(SECTOR_OPTIONS),
+    marital_status: pick(MARITAL_OPTIONS),
+    children_count: Math.floor(Math.random() * 5),
+  }
+  validationResult.value = null
+}
 
 onMounted(async () => {
   try {
@@ -108,7 +132,8 @@ watch(health, (h) => {
 
       <!-- API status banner -->
       <div v-if="apiError" class="banner banner-error">
-        ⚠ تعذّر الاتصال بالخادم — تأكد من تشغيل backend على المنفذ 8000
+        <strong>⚠ تعذّر الاتصال بالخادم</strong> — الـ backend غير مشغّل على المنفذ 8000.<br>
+        من جذر المشروع: <code>./run.sh</code> أو من مجلد backend: <code>uvicorn main:app --reload --port 8000</code>
       </div>
       <div v-else-if="health && health.mode === 'demo'" class="banner banner-warning">
         🔧 وضع تجريبي — أضف <code>OPENAI_API_KEY</code> أو <code>GROQ_API_KEY</code> في ملف <code>backend/.env</code> لتفعيل النموذج اللغوي
@@ -250,6 +275,7 @@ watch(health, (h) => {
             <span v-if="isSubmitting" class="btn-spinner"></span>
             <span>{{ isSubmitting ? 'جارٍ التحقق…' : 'تحقق نهائي من الاستمارة' }}</span>
           </button>
+          <button type="button" class="btn btn-ghost" @click="generateRandomData">🎲 توليد بيانات عشوائية</button>
           <button type="button" class="btn btn-ghost" @click="resetForm">إعادة تعيين</button>
         </div>
 

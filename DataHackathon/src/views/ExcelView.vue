@@ -306,7 +306,8 @@ function scoreColor(score: number) {
               <td v-for="col in columns" :key="col"
                 :class="['data-cell', getCellClass(row, col)]">
                 <div class="cell-inner">
-                  <span class="cell-val">{{ row.originalData[col] }}</span>
+                  <span v-if="row.validation?.status === 'valid'" class="cell-val cell-valid-template">نموذج لغوي سليم — البيانات متسقة ومنطقية</span>
+                  <span v-else class="cell-val">{{ row.originalData[col] }}</span>
                   <!-- Tooltip -->
                   <span v-if="getFieldError(row, col)" class="error-badge">!</span>
                   <div v-if="getFieldError(row, col)" class="tooltip-box">
@@ -589,6 +590,11 @@ function scoreColor(score: number) {
   text-overflow: ellipsis;
   max-width: 160px;
   display: inline-block;
+}
+.cell-valid-template {
+  color: #047857;
+  font-weight: 500;
+  font-style: italic;
 }
 
 /* Error cell colors */

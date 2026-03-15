@@ -33,7 +33,18 @@ echo "▶ تشغيل الـ Backend (API) على http://127.0.0.1:8000"
 run_backend &
 BACKEND_PID=$!
 
-sleep 2
+# انتظار جاهزية الـ Backend (حتى 30 ثانية)
+echo "⏳ انتظار تشغيل الـ Backend..."
+for i in $(seq 1 30); do
+  if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/health 2>/dev/null | grep -q 200; then
+    echo "✓ الـ Backend جاهز"
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "⚠ تحذير: الـ Backend لم يستجب بعد. الواجهة ستفتح لكن قد ترى «تعذّر الاتصال بالخادم» حتى يعمل الـ Backend."
+  fi
+  sleep 1
+done
 
 echo "▶ تشغيل الواجهة (Vue) على http://localhost:5173"
 run_frontend

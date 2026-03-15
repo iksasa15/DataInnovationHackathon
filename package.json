@@ -1,0 +1,8 @@
+{
+  "name": "data-innovation-hackathon",
+  "private": true,
+  "scripts": {
+    "start": "./run.sh",
+    "backend": "./run-backend.sh"
+  }
+}
