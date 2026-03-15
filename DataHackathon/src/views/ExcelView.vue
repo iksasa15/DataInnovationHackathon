@@ -255,13 +255,10 @@ function downloadBlob(blob: Blob, name: string) {
   URL.revokeObjectURL(a.href)
 }
 
-function exportFileAndReport() {
+function exportFileOnly() {
   const isCsv = fileName.value.toLowerCase().endsWith('.csv')
   const baseName = fileName.value.replace(/\.[^.]+$/, '') || 'export'
-
   const dataRows = rows.value.map((r) => r.editableData ?? r.originalData)
-  const reportText = buildReportText()
-
   if (isCsv) {
     const header = columns.value.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
     const csvLines = [header]
@@ -282,8 +279,12 @@ function exportFileAndReport() {
     const xlsxBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
     downloadBlob(new Blob([xlsxBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${baseName}_معدل.xlsx`)
   }
+}
 
-  downloadBlob(new Blob([reportText], { type: 'text/plain;charset=utf-8' }), `${baseName}_تقرير.txt`)
+function exportFileAndReport() {
+  const baseName = fileName.value.replace(/\.[^.]+$/, '') || 'export'
+  exportFileOnly()
+  downloadBlob(new Blob([buildReportText()], { type: 'text/plain;charset=utf-8' }), `${baseName}_تقرير.txt`)
 }
 
 /** ملخص المشاكل والاقتراحات للصف (لعمود التفاصيل) */
@@ -346,6 +347,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             @click="analyzeAll">
             <span v-if="isProcessing" class="btn-spinner"></span>
             {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بـ Gemini' }}
+          </button>
+          <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
+            📥 تحميل الملف
           </button>
           <button class="btn btn-export btn-sm" @click="exportFileAndReport" title="تصدير الملف المعدّل مع التقرير">
             💾 حفظ وتصدير + التقرير
@@ -860,6 +864,12 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border-color: #0e7490;
   background: var(--color-background);
 }
+.btn-download {
+  background: var(--color-background-mute);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+.btn-download:hover { background: var(--color-background-soft); }
 .btn-export {
   background: #047857;
   color: #fff;
