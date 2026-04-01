@@ -109,11 +109,22 @@ class BatchRecord(BaseModel):
 
 @app.post("/api/validate-batch")
 async def validate_batch(records: List[BatchRecord]):
+    """
+    تحقق دفعي بنفس حقول الاستمارة المبسّطة.
+    عند ضبط مفتاح LLM (Gemini / Groq / OpenAI) يُستخدم نفس مسار `/api/validate` (ذكي).
+    بدون مفتاح يُستخدم التحقق السريع المحلي (`validate_form_quick`) — مكافئ لوضع العرض التوضيحي.
+    """
+    from validator import get_gemini_api_key
+
+    use_llm = bool(get_gemini_api_key()) or bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("OPENAI_API_KEY"))
     results = []
     for record in records:
         data = record.model_dump()
         row_index = data.pop("row_index")
-        result = validate_form_quick(data)
+        if use_llm:
+            result = await validate_form(data)
+        else:
+            result = validate_form_quick(data)
         result["row_index"] = row_index
         results.append(result)
     total = len(results)
@@ -136,11 +147,25 @@ class DynamicBatchPayload(BaseModel):
     columns: List[str]
     records: List[Dict[str, Any]]
     mode: Literal["fast", "smart"] = "smart"
+    column_labels: Optional[Dict[str, str]] = None
+    embed_metadata: bool = True
+    column_subset: bool = True
+    max_columns: Optional[int] = None
+    apply_hybrid_rules: bool = True
 
 
 @app.post("/api/validate-batch-dynamic")
 async def validate_batch_dynamic(payload: DynamicBatchPayload):
-    return await validate_rows_dynamic(payload.columns, payload.records, payload.mode)
+    return await validate_rows_dynamic(
+        payload.columns,
+        payload.records,
+        payload.mode,
+        column_labels=payload.column_labels,
+        embed_metadata=payload.embed_metadata,
+        column_subset=payload.column_subset,
+        max_columns=payload.max_columns,
+        apply_hybrid_rules=payload.apply_hybrid_rules,
+    )
 
 
 if __name__ == "__main__":

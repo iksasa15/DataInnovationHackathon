@@ -1,0 +1,4 @@
+# أسرار البيئة — لا ترفعها إلى Git
+backend/.env
+.env
+*.env.local

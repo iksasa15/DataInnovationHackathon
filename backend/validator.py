@@ -9,6 +9,17 @@ import google.generativeai as genai
 
 from prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 
+from lfs_business_rules import apply_lfs_hybrid_rules, merge_hybrid_into_result
+from lfs_metadata import (
+    LFS_PRIORITY_COLUMNS,
+    load_default_labels,
+    max_columns_from_env,
+    merge_labels_for_columns,
+    select_columns_for_chunk,
+    slice_record_to_columns,
+)
+from prompts_lfs import format_few_shot_lfs_block
+
 # مفتاح Gemini المعيّن من الواجهة (يُفضّل على .env للجلسة الحالية)
 _gemini_api_key_override: Optional[str] = None
 
@@ -432,11 +443,28 @@ def _dynamic_fallback(columns: list[str], records: list[dict]) -> dict:
     return {"results": results, "stats": _compute_stats(results)}
 
 
-def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -> str:
+def _build_dynamic_batch_prompt(
+    columns: list[str],
+    records_chunk: list[dict],
+    column_labels: Optional[dict[str, str]] = None,
+    include_lfs_few_shot: bool = True,
+) -> str:
+    labels_section = ""
+    if column_labels:
+        slim = {c: column_labels[c] for c in columns if c in column_labels}
+        if slim:
+            labels_section = (
+                "\nقاموس معاني الحقول (مرجع — استخدم أسماء الأعمدة كما هي في الأخطاء):\n"
+                f"{json.dumps(slim, ensure_ascii=False, indent=2)}\n"
+            )
+    few_lfs = format_few_shot_lfs_block() if include_lfs_few_shot else ""
+
     return (
         "أنت مدقق جودة بيانات خبير في اكتشاف التناقضات المنطقية والدلالية في أي نموذج استبيان.\n"
         "مهم: جميع المخرجات (message في errors، suggestions، summary) يجب أن تكون باللغة العربية فقط، حتى لو كانت البيانات المدخلة بالإنجليزية أو بأي لغة أخرى.\n"
-        "حلّل كل صف اعتماداً على العلاقة بين الحقول داخل نفس الصف فقط.\n\n"
+        "حلّل كل صف اعتماداً على العلاقة بين الحقول داخل نفس الصف فقط.\n"
+        f"{few_lfs}"
+        f"{labels_section}"
         "المطلوب — تحليل كل شيء وليس الأرقام فقط:\n"
         "• الأرقام: عمر، رواتب، سنوات خبرة، أعداد — تحقق من المنطق والحدود.\n"
         "• النصوص والتسميات: المسمى الوظيفي، المؤهل العلمي، الجنس، الحالة الاجتماعية، نوع السكن، جهة العمل، أي تسمية أو تصنيف — تحقق من التناسق بينها (مثلاً مؤهل «ابتدائي» مع مسمى «طبيب»، أو «أعزب» مع «عدد أبناء» كبير، أو عمر صغير مع منصب قيادي).\n"
@@ -477,7 +505,17 @@ def _build_dynamic_batch_prompt(columns: list[str], records_chunk: list[dict]) -
     )
 
 
-async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: str = "smart") -> dict:
+async def validate_rows_dynamic(
+    columns: list[str],
+    records: list[dict],
+    mode: str = "smart",
+    *,
+    column_labels: Optional[dict[str, str]] = None,
+    embed_metadata: bool = True,
+    column_subset: bool = True,
+    max_columns: Optional[int] = None,
+    apply_hybrid_rules: bool = True,
+) -> dict:
     if not columns or not records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
@@ -496,10 +534,23 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
     if not cleaned_records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
+    default_labs = load_default_labels() if embed_metadata else {}
+
+    mc = max_columns if max_columns is not None else max_columns_from_env()
+
     mode = (mode or "smart").lower().strip()
     if mode == "fast":
         out = _dynamic_fallback(columns, cleaned_records)
         out["provider"] = "local"
+        results_fast = []
+        for r in out["results"]:
+            idx = int(r.get("row_index", 0))
+            full = next((cr for cr in cleaned_records if int(cr["row_index"]) == idx), None)
+            if apply_hybrid_rules and full:
+                r = merge_hybrid_into_result(r, apply_lfs_hybrid_rules(full))
+            results_fast.append(r)
+        out["results"] = results_fast
+        out["stats"] = _compute_stats(results_fast)
         return out
 
     gemini_key = get_gemini_api_key()
@@ -507,6 +558,15 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
         out = _dynamic_fallback(columns, cleaned_records)
         out["provider"] = "local"
         out["gemini_unavailable"] = True
+        results_local = []
+        for r in out["results"]:
+            idx = int(r.get("row_index", 0))
+            full = next((cr for cr in cleaned_records if int(cr["row_index"]) == idx), None)
+            if apply_hybrid_rules and full:
+                r = merge_hybrid_into_result(r, apply_lfs_hybrid_rules(full))
+            results_local.append(r)
+        out["results"] = results_local
+        out["stats"] = _compute_stats(results_local)
         return out
 
     chunk_size = max(5, int(os.getenv("DYNAMIC_BATCH_SIZE", "20")))
@@ -514,9 +574,21 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
     gemini_used = False
 
     for i in range(0, len(cleaned_records), chunk_size):
-        chunk = cleaned_records[i : i + chunk_size]
+        chunk_full = cleaned_records[i : i + chunk_size]
+        cols_use = (
+            select_columns_for_chunk(columns, chunk_full, LFS_PRIORITY_COLUMNS, mc)
+            if column_subset
+            else columns
+        )
+        labels_for_prompt = merge_labels_for_columns(cols_use, default_labs, column_labels)
+        chunk_llm = [slice_record_to_columns(rec, cols_use) for rec in chunk_full]
         try:
-            prompt = _build_dynamic_batch_prompt(columns, chunk)
+            prompt = _build_dynamic_batch_prompt(
+                cols_use,
+                chunk_llm,
+                column_labels=labels_for_prompt,
+                include_lfs_few_shot=True,
+            )
             raw = await _call_gemini_prompt(prompt)
             model_results = raw.get("results") if isinstance(raw, dict) else []
             model_results = model_results if isinstance(model_results, list) else []
@@ -526,14 +598,22 @@ async def validate_rows_dynamic(columns: list[str], records: list[dict], mode: s
                 if isinstance(item, dict) and "row_index" in item:
                     by_index[int(item["row_index"])] = item
 
-            for rec in chunk:
-                idx = rec["row_index"]
+            for rec_full in chunk_full:
+                idx = int(rec_full["row_index"])
                 item = by_index.get(idx, {})
-                results.append(_sanitize_dynamic_item(item, idx, columns))
+                sanitized = _sanitize_dynamic_item(item, idx, cols_use)
+                if apply_hybrid_rules:
+                    sanitized = merge_hybrid_into_result(sanitized, apply_lfs_hybrid_rules(rec_full))
+                results.append(sanitized)
             gemini_used = True
         except Exception:
-            fallback_chunk = _dynamic_fallback(columns, chunk)
-            results.extend(fallback_chunk["results"])
+            fallback_chunk = _dynamic_fallback(cols_use, chunk_llm)
+            for fb in fallback_chunk["results"]:
+                idx = int(fb.get("row_index", 0))
+                full = next((cr for cr in chunk_full if int(cr["row_index"]) == idx), None)
+                if apply_hybrid_rules and full:
+                    fb = merge_hybrid_into_result(fb, apply_lfs_hybrid_rules(full))
+                results.append(fb)
 
     results.sort(key=lambda r: int(r.get("row_index", 0)))
     return {

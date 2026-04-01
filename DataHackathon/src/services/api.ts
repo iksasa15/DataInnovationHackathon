@@ -103,7 +103,16 @@ export async function validateBatch(records: BatchRecord[]): Promise<BatchResult
 export interface DynamicBatchPayload {
   columns: string[]
   records: Record<string, any>[]
-  mode?: "fast" | "smart"
+  mode?: 'fast' | 'smart'
+  /** تسميات عربية اختيارية للأعمدة (تُدمج مع ملف الميتاداتا الافتراضي في الخادم) */
+  column_labels?: Record<string, string>
+  /** دمج backend/data/lfs_column_labels.json تلقائياً */
+  embed_metadata?: boolean
+  /** تقليص الأعمدة الطويلة (LFS) قبل الإرسال للنموذج */
+  column_subset?: boolean
+  max_columns?: number
+  /** دمج قواعد الأعمال الصريحة مع مخرجات النموذج */
+  apply_hybrid_rules?: boolean
 }
 
 export async function validateBatchDynamic(payload: DynamicBatchPayload): Promise<BatchResult> {
