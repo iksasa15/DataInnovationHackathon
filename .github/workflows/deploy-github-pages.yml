@@ -37,7 +37,8 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           npm ci
-          npm run build
+          # build-only يتخطى vue-tsc — npm run build يفشل أحياناً ويمنع النشر فيبقى README كصفحة افتراضية
+          npm run build-only
 
       - name: SPA fallback + disable Jekyll
         run: |

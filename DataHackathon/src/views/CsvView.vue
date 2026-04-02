@@ -141,7 +141,7 @@ async function analyzeAll() {
     const payload = {
       columns: columns.value,
       records: rows.value.map((r) => ({ row_index: r.row_index, ...(r.editableData ?? r.originalData) })),
-      mode: 'smart',
+      mode: 'smart' as const,
     }
     batchResult.value = await validateBatchDynamic(payload)
     const resultMap = new Map(batchResult.value.results.map((r) => [r.row_index, r]))

@@ -36,8 +36,8 @@ const GENDER_OPTIONS = ['ذكر', 'أنثى']
 const RANDOM_NAMES = ['أحمد محمد', 'سارة علي', 'خالد عبدالله', 'نورة سعد', 'فهد حسن', 'مريم إبراهيم', 'عمر يوسف', 'هند عبدالرحمن', 'تركي فيصل', 'لمى ناصر']
 const RANDOM_JOBS = ['مهندس برمجيات', 'مدير مالي', 'طبيب عام', 'معلم', 'محاسب', 'مدير تسويق', 'ممرض', 'موظف إداري', 'فني مختبر', 'باحث']
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+function pick<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!
 }
 
 function generateRandomData() {
