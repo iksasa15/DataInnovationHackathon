@@ -1,10 +1,14 @@
 # الحارس الدلالي — مساعد ذكي للتحقق من التناقضات المنطقية والدلالية
 
-**[افتح التطبيق — الصفحة الرئيسية (GitHub Pages)](https://iksasa15.github.io/DataInnovationHackathon/)**
+**[افتح التطبيق — الصفحة الرئيسية (GitHub Pages)](https://iksasa15.github.io/DataInnovationHackathon/#/)**
 
-> إذا ظهر **نص README** بدل الواجهة: **Settings → Pages → Build and deployment → Source: GitHub Actions** (ليس «Deploy from branch»)، ثم ادفع إلى `main` أو نفّذ workflow **Deploy frontend to GitHub Pages** يدوياً من تبويب Actions.
+> **إن ظهر نص README بدل الواجهة:** المستودع كان ينشر **جذر الفرع** (`/`) فيعرض `README.md`. عيّن المصدر إلى مجلد **`docs`** بعد أول نشر ناجح من Actions:
 >
-> على GitHub Pages تُبنى الواجهة بـ **Hash Router** (`…/DataInnovationHackathon/#/analysis`) حتى لا يظهر خطأ 404 عند فتح مسار مثل `/analysis` مباشرة؛ الرابط القديم يُحوَّل تلقائياً عبر `404.html`.
+> **Settings → Pages → Build and deployment → Deploy from a branch → Branch: `main` → Folder: `/docs`** (وليس `/ (root)`).
+>
+> الـ workflow **`Deploy frontend to GitHub Pages (docs)`** يبني Vue ويدفع `dist` إلى **`docs/`** على `main`. بعد الدمج انتظر اكتمال Actions أو شغّل الـ workflow يدوياً.
+>
+> روابط مباشرة للصفحات: `…/DataInnovationHackathon/#/` (رئيسية)، `…/#/survey`، `…/#/analysis` — تجنّب `/analysis` بدون `#` على Pages.
 
 نموذج أولي (POC) لمسار **المعالجة الذكية للبيانات** في هاكثون الابتكار في البيانات (الطريق إلى الرياض 2026).  
 يربط واجهات **نماذج لغوية كبيرة (LLM)** بمنظومة جمع البيانات: **استمارة حية** و**رفع ملفات Excel/CSV**، مع مخرجات موحّدة تشمل **درجة ثقة** و**حالة** (valid / warning / error) و**أخطاء مرتبطة بالحقول** و**اقتراحات**.

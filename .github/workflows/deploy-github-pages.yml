@@ -1,27 +1,30 @@
-# يبني واجهة DataHackathon وينشرها إلى GitHub Pages (تطبيق Vue وليس README).
-# بعد الدمج: الإعدادات → Pages → Build and deployment → Source: GitHub Actions.
-# أضف في Repository secrets: VITE_API_URL = رابط الـ API العام (مثل https://xxx.onrender.com)
-name: Deploy frontend to GitHub Pages
+# يبني DataHackathon ويدفع dist إلى مجلد docs/ على main.
+# في GitHub: Settings → Pages → Source: Deploy from branch → Branch: main → Folder: /docs
+# (ليس الجذر / ولا README — ولا يلزم «GitHub Actions» كمصدر للصفحات.)
+# أضف Secret: VITE_API_URL = رابط الـ API العام
+name: Deploy frontend to GitHub Pages (docs)
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-docs
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -32,29 +35,21 @@ jobs:
       - name: Install and build
         working-directory: DataHackathon
         env:
-          # مسار مشروع GitHub Pages: https://USER.github.io/REPO/
           VITE_BASE_PATH: /DataInnovationHackathon/
-          # Hash router + 404.html يعيد توجيه /REPO/analysis → /REPO/#/analysis (إصلاح 404 على Pages)
           VITE_GH_PAGES: 'true'
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           npm ci
-          # build-only يتخطى vue-tsc — npm run build يفشل أحياناً ويمنع النشر فيبقى README كصفحة افتراضية
           npm run build-only
 
-      - name: Disable Jekyll on Pages
+      - name: Disable Jekyll
         run: touch DataHackathon/dist/.nojekyll
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Push dist to docs/
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          path: DataHackathon/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          branch: main
+          folder: DataHackathon/dist
+          target-folder: docs
+          clean-target-folder: true
+          commit-message: 'chore(pages): deploy Vue app to docs [skip ci]'
