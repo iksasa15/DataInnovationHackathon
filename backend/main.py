@@ -2,20 +2,14 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Literal
 
-from validator import (
-    validate_form,
-    validate_form_quick,
-    validate_rows_dynamic,
-    check_gemini_connection,
-    set_gemini_api_key,
-)
-from supabase_settings import supabase_settings_enabled
-
 load_dotenv()
+
+# لا تستورد validator هنا — يحمّل google-generativeai وgrpc وثقيل على الذاكرة؛
+# تأجيل الاستيراد يقلّل احتمال 502 على /openapi.json و/docs مع خطة Render المجانية (512MB).
 
 
 def _env_truthy(name: str) -> bool:
@@ -29,9 +23,9 @@ def _gemini_key_in_env() -> bool:
 def _supabase_gemini_configured() -> bool:
     """يوجد مفتاح فعلي في Supabase (بعد الجلب المؤقت)."""
     try:
-        from supabase_settings import fetch_gemini_api_key_sync, supabase_settings_enabled
+        from supabase_settings import fetch_gemini_api_key_sync, supabase_settings_enabled as _sse
 
-        if not supabase_settings_enabled():
+        if not _sse():
             return False
         return bool(fetch_gemini_api_key_sync())
     except Exception:
@@ -76,6 +70,12 @@ app.add_middleware(
 )
 
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """يوجّه جذر الخدمة إلى Swagger — يفيد فحوصات المتصفح وRender."""
+    return RedirectResponse(url="/docs")
+
+
 class FormData(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
@@ -95,6 +95,7 @@ class GeminiApiKeyPayload(BaseModel):
 
 @app.get("/api/health")
 async def health():
+    from supabase_settings import supabase_settings_enabled as _sse
     from validator import get_gemini_api_key
 
     has_gemini = bool(get_gemini_api_key())
@@ -115,7 +116,7 @@ async def health():
         "provider": provider,
         "mode": "live" if configured else "demo",
         "gemini_from_env": _gemini_key_in_env(),
-        "supabase_settings_enabled": supabase_settings_enabled(),
+        "supabase_settings_enabled": _sse(),
         "gemini_from_supabase": _supabase_gemini_configured(),
         "client_can_set_gemini_key": _client_can_post_gemini_key(),
     }
@@ -124,6 +125,8 @@ async def health():
 @app.get("/api/gemini-status")
 async def gemini_status():
     """التحقق من اتصال Gemini بعمل طلب فعلي."""
+    from validator import check_gemini_connection
+
     return await check_gemini_connection()
 
 
@@ -146,12 +149,16 @@ async def set_gemini_key(payload: GeminiApiKeyPayload):
                 "message": "إرسال المفتاح من المتصفح معطّل. استخدم Supabase أو GEMINI_API_KEY على الخادم.",
             },
         )
+    from validator import set_gemini_api_key
+
     set_gemini_api_key(payload.api_key or "")
     return {"ok": True, "message": "تم حفظ المفتاح"}
 
 
 @app.post("/api/validate")
 async def validate(data: FormData):
+    from validator import validate_form
+
     result = await validate_form(data.model_dump())
     return result
 
@@ -177,7 +184,7 @@ async def validate_batch(records: List[BatchRecord]):
     عند ضبط مفتاح LLM (Gemini / Groq / OpenAI) يُستخدم نفس مسار `/api/validate` (ذكي).
     بدون مفتاح يُستخدم التحقق السريع المحلي (`validate_form_quick`) — مكافئ لوضع العرض التوضيحي.
     """
-    from validator import get_gemini_api_key
+    from validator import get_gemini_api_key, validate_form, validate_form_quick
 
     use_llm = bool(get_gemini_api_key()) or bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("OPENAI_API_KEY"))
     results = []
@@ -219,6 +226,8 @@ class DynamicBatchPayload(BaseModel):
 
 @app.post("/api/validate-batch-dynamic")
 async def validate_batch_dynamic(payload: DynamicBatchPayload):
+    from validator import validate_rows_dynamic
+
     return await validate_rows_dynamic(
         payload.columns,
         payload.records,
