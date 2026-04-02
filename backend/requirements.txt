@@ -22,6 +22,4 @@ pydantic==2.9.0
 # --- طلبات HTTP (للـ API الخارجية) ---
 httpx==0.27.2
 
-# --- تحليل بيانات / تقييم LFS (سكربت eval_lfs_notes.py) ---
-pandas==2.2.3
-openpyxl==3.1.5
+# pandas / openpyxl: سكربتات محلية فقط — انظر requirements-scripts.txt (مُستبعد من Render لتجنب بناء ضخم وOOM)

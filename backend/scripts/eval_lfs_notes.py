@@ -3,8 +3,13 @@
 تقييم تقريبي: مقارنة مخرجات التحقق مع عمود «الملاحظة» في LFS_Training_Dataset.
 يعمل بدون مفتاح API (وضع fast = قواعد محلية + طبقة hybrid).
 
+يتطلّب: pip install -r backend/requirements-scripts.txt
+
 الاستخدام من جذر المستودع:
   backend/.venv/bin/python backend/scripts/eval_lfs_notes.py
+
+أو من مجلد backend:
+  python scripts/eval_lfs_notes.py
 
 أو مع ملف مخصص:
   backend/.venv/bin/python backend/scripts/eval_lfs_notes.py path/to/LFS_Training_Dataset\\ 3.xlsx
