@@ -10,7 +10,11 @@ import google.generativeai as genai
 
 from prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 
-from lfs_business_rules import apply_lfs_hybrid_rules, merge_hybrid_into_result
+from lfs_business_rules import (
+    apply_code_desc_false_positive_filter,
+    apply_lfs_hybrid_rules,
+    merge_hybrid_into_result,
+)
 from lfs_metadata import (
     LFS_PRIORITY_COLUMNS,
     load_default_labels,
@@ -515,7 +519,10 @@ def _build_dynamic_batch_prompt(
         f"{labels_section}"
         "المطلوب — تحليل كل شيء وليس الأرقام فقط:\n"
         "• الأرقام: عمر، رواتب، سنوات خبرة، أعداد — تحقق من المنطق والحدود.\n"
-        "• النصوص والتسميات: المسمى الوظيفي، المؤهل العلمي، الجنس، الحالة الاجتماعية، نوع السكن، جهة العمل، أي تسمية أو تصنيف — تحقق من التناسق بينها (مثلاً مؤهل «ابتدائي» مع مسمى «طبيب»، أو «أعزب» مع «عدد أبناء» كبير، أو عمر صغير مع منصب قيادي).\n"
+        "• النصوص والتسميات: المسمى الوظيفي، المؤهل العلمي، الحالة الاجتماعية، نوع السكن، جهة العمل، أي تسمية أو تصنيف — تحقق من التناسق بينها (مثلاً مؤهل «ابتدائي» مع مسمى «طبيب»، أو «أعزب» مع «عدد أبناء» كبير، أو عمر صغير مع منصب قيادي).\n"
+        "• أزواج حقول استبيان LFS (مهم جداً): إذا وُجد حقل اسمه «X» مع حقل «X_desc» (مثل gender مع gender_desc، nationality مع nationality_desc، q_301 مع q_301_desc، وأي q_* مع q_*_desc)، "
+        "فالأول غالباً **رمز أو رقم معرف** من الجدول، والثاني **وصف نصي مرجعي** من الاستمارة (غالباً بصيغة «رقم-نص» مثل «1-ذكر» أو «2-أنثى»). "
+        "**لا تعتبر ذلك تعارضاً أو تناقضاً** بين الرقم والنص — هما مكملان من نظام الترميز. لا تُسجّل خطأ يدّعي عدم تطابق الرمز مع الوصف لهذه الأزواج.\n"
         "• أي حقل آخر: أسماء، فئات، تواريخ، نصوص حرة — راعِ التناسق مع باقي حقول نفس الصف.\n\n"
         "معالج القيم المفقودة والأخطاء:\n"
         "• القيمة المفقودة: إذا كان حقل مهماً فارغاً أو غير مكتمل، أضفه في errors بشدة مناسبة (مثلاً severity: \"medium\") مع message يوضح أن القيمة مفقودة، وفي suggestions أضف اقتراحاً لاستكماله (مثل: \"أكمل حقل [اسم الحقل] بقيمة مناسبة\").\n"
@@ -594,6 +601,8 @@ async def validate_rows_dynamic(
         for r in out["results"]:
             idx = int(r.get("row_index", 0))
             full = next((cr for cr in cleaned_records if int(cr["row_index"]) == idx), None)
+            if full:
+                r = apply_code_desc_false_positive_filter(r, full)
             if apply_hybrid_rules and full:
                 r = merge_hybrid_into_result(r, apply_lfs_hybrid_rules(full))
             results_fast.append(r)
@@ -610,6 +619,8 @@ async def validate_rows_dynamic(
         for r in out["results"]:
             idx = int(r.get("row_index", 0))
             full = next((cr for cr in cleaned_records if int(cr["row_index"]) == idx), None)
+            if full:
+                r = apply_code_desc_false_positive_filter(r, full)
             if apply_hybrid_rules and full:
                 r = merge_hybrid_into_result(r, apply_lfs_hybrid_rules(full))
             results_local.append(r)
@@ -650,6 +661,7 @@ async def validate_rows_dynamic(
                 idx = int(rec_full["row_index"])
                 item = by_index.get(idx, {})
                 sanitized = _sanitize_dynamic_item(item, idx, cols_use)
+                sanitized = apply_code_desc_false_positive_filter(sanitized, rec_full)
                 if apply_hybrid_rules:
                     sanitized = merge_hybrid_into_result(sanitized, apply_lfs_hybrid_rules(rec_full))
                 results.append(sanitized)
@@ -659,6 +671,8 @@ async def validate_rows_dynamic(
             for fb in fallback_chunk["results"]:
                 idx = int(fb.get("row_index", 0))
                 full = next((cr for cr in chunk_full if int(cr["row_index"]) == idx), None)
+                if full:
+                    fb = apply_code_desc_false_positive_filter(fb, full)
                 if apply_hybrid_rules and full:
                     fb = merge_hybrid_into_result(fb, apply_lfs_hybrid_rules(full))
                 results.append(fb)

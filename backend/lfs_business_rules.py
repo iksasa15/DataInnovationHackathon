@@ -182,6 +182,123 @@ def apply_lfs_hybrid_rules(row: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
+_SPURIOUS_CODE_DESC_MSG = re.compile(
+    r"تعارض|متناقض|تناقض\s+بين|لا\s*يتطابق|لا\s*يتسق|"
+    r"\bmismatch\b|inconsisten|الرمز\s+و|الكود\s+و|رقم\s+[^\s]+\s+و\s*الوصف|"
+    r"\bnumeric\b|code\s+and|وصف\s+لا\s+يت",
+    re.I | re.UNICODE,
+)
+
+
+def _pair_base_desc_columns(row: dict[str, Any]) -> list[tuple[str, str]]:
+    """أزواج (حقل_رمز، حقل_وصف) مثل gender / gender_desc."""
+    out: list[tuple[str, str]] = []
+    for k in row:
+        if k == "row_index":
+            continue
+        if isinstance(k, str) and k.endswith("_desc"):
+            base = k[:-5]
+            if base and base in row:
+                out.append((base, k))
+    return out
+
+
+def _nonempty_cell(v: Any) -> bool:
+    if v is None:
+        return False
+    if isinstance(v, float) and v != v:
+        return False
+    s = str(v).strip()
+    return bool(s) and s.lower() != "nan"
+
+
+def _looks_like_lfs_paired_label(desc: str, base: str) -> bool:
+    """تسمية قيمة LFS: غالباً «رقم-نص» أو ذكر/أنثى في حقول التصنيف."""
+    t = str(desc).strip()
+    if not t:
+        return False
+    if re.match(r"^\d+\s*[-–]\s*\S", t):
+        return True
+    if base in ("gender", "nationality", "family_relation", "marage_status") and re.search(
+        r"ذكر|أنثى|مؤنث|male|female|سعود|غير", t, re.I
+    ):
+        return True
+    if base.startswith("q_") and re.match(r"^\d+\s*[-–]", t):
+        return True
+    return False
+
+
+def strip_code_desc_spurious_errors(errors: list[dict[str, Any]], row: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    يزيل أخطاء زائفة تزعم تعارضاً بين حقل رمزي ورقمي وحقل *_desc نصي مرجعي (استبيان LFS).
+    ينطبق على كل الأزواج (* / *_desc) وليس فقط الجنس.
+    """
+    pairs = _pair_base_desc_columns(row)
+    if not pairs:
+        return errors
+
+    out: list[dict[str, Any]] = []
+    for e in errors:
+        if not isinstance(e, dict):
+            continue
+        fld = str(e.get("field", "")).strip()
+        msg = str(e.get("message", ""))
+        drop = False
+        for base, desc_col in pairs:
+            if fld not in (base, desc_col):
+                continue
+            if not _nonempty_cell(row.get(base)) or not _nonempty_cell(row.get(desc_col)):
+                continue
+            desc_txt = str(row.get(desc_col)).strip()
+            if not _looks_like_lfs_paired_label(desc_txt, base):
+                continue
+            if _SPURIOUS_CODE_DESC_MSG.search(msg):
+                drop = True
+                break
+        if not drop:
+            out.append(e)
+    return out
+
+
+def recompute_result_from_errors(result: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, Any]:
+    """إعادة حساب الدرجة والحالة بعد حذف أخطاء."""
+    penalty = sum(
+        {"high": 35, "medium": 20, "low": 8}.get(str(e.get("severity", "medium")).lower(), 10)
+        for e in errors
+    )
+    score = max(0, 100 - penalty)
+    if not errors:
+        status = "valid"
+    elif score >= 50:
+        status = "warning"
+    else:
+        status = "error"
+
+    out = {
+        **result,
+        "errors": errors,
+        "confidence_score": score,
+        "status": status,
+    }
+    if not errors:
+        out["suggestions"] = []
+        summ = str(result.get("summary") or "")
+        if "تعارض" in summ or "خطأ" in summ or "رُصد" in summ:
+            out["summary"] = "البيانات متسقة ومنطقية ضمن حقول الرموز والأوصاف المرجعية."
+        else:
+            out["summary"] = summ or "البيانات متسقة ومنطقية"
+    return out
+
+
+def apply_code_desc_false_positive_filter(result: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    """يطبّق تصفية أزواج الرمز/الوصف ثم يعيد حساب النتيجة."""
+    errs = list(result.get("errors") or [])
+    filtered = strip_code_desc_spurious_errors(errs, row)
+    if len(filtered) == len(errs):
+        return result
+    return recompute_result_from_errors(result, filtered)
+
+
 def merge_hybrid_into_result(result: dict[str, Any], hybrid_errors: list[dict[str, Any]]) -> dict[str, Any]:
     """دمج أخطاء القواعد الصلبة مع نتيجة النموذج وإعادة حساب الدرجة."""
     if not hybrid_errors:

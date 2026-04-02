@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
 import { validateBatchDynamic } from '../services/api'
@@ -28,6 +28,111 @@ const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
 const detailsModalRow = ref<number | null>(null)
+
+/** معرف العمود (tag) → نص السؤال من MetaData_LFS_Training_Dataset */
+const lfsColumnQuestionByName = ref<Record<string, string>>({})
+
+/**
+ * إزالة عناصر الاستبيان النائبة [#token#] و #field# حتى لا تُعرض للمستخدم،
+ * وإزالة جمل «الفترة المرجعية» التي تصبح فارغة بعد الحذف.
+ */
+function sanitizeLfsQuestionForDisplay(text: string): string {
+  let s = text
+  s = s.replace(/\[\#[^\]]+\#\]/g, '')
+  s = s.replace(/\#[a-zA-Z0-9_]+\#/g, '…')
+  s = s.replace(
+    /\s*ملاحظة(?:\s*للباحث)?\s*:\s*الفترة المرجعية هي\s+(?:الى|إلى)\s+الموافق للتاريخ الميلادي\s+(?:الى|إلى)\s*/gi,
+    ' ',
+  )
+  s = s.replace(/\s*الفترة المرجعية هي\s+(?:الى|إلى)\s+الموافق للتاريخ الميلادي\s+(?:الى|إلى)\s*/gi, ' ')
+  s = s.replace(/\(\s*\)/g, '')
+  s = s.replace(/\[\s*\]/g, '')
+  s = s.replace(/\s{2,}/g, ' ')
+  s = s.replace(/\s*([\u060C،])\s*/g, '$1 ')
+  s = s.trim()
+  s = s.replace(/^،\s*/u, '')
+  s = s.replace(/\s+،\s*$/u, '،')
+  return s
+}
+
+/**
+ * بناء فهرس tag → نص السؤال من ورقة الميتاداتا.
+ * يتوافق مع `regenerate_lfs_column_labels.py`: العمود الأول = المعرف، الثاني = السؤال.
+ * يدعم أسماء رؤوس `Column_Name` / `Question` أو أي ترتيب عمودين إن تغيّر الملف.
+ */
+function buildLfsMetadataMapFromSheet(ws: XLSX.WorkSheet): Record<string, string> {
+  const map: Record<string, string> = {}
+
+  const asRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
+  if (asRows.length) {
+    const firstKeys = Object.keys(asRows[0] ?? {})
+    const colKey =
+      firstKeys.find((k) => k.trim().toLowerCase() === 'column_name') ?? firstKeys[0]
+    const qKey = firstKeys.find((k) => k.trim().toLowerCase() === 'question') ?? firstKeys[1]
+    if (colKey && qKey) {
+      for (const r of asRows) {
+        const key = r[colKey] != null ? String(r[colKey]).trim() : ''
+        const q = r[qKey] != null ? String(r[qKey]).trim() : ''
+        if (!key || !q) continue
+        if (key.toLowerCase() === 'column_name') continue
+        map[key] = q
+      }
+      if (Object.keys(map).length) return map
+    }
+  }
+
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
+  for (let i = 1; i < aoa.length; i++) {
+    const row = aoa[i]
+    if (!Array.isArray(row)) continue
+    const key = String(row[0] ?? '').trim()
+    const q = String(row[1] ?? '').trim()
+    if (!key || !q) continue
+    if (key.toLowerCase() === 'column_name') continue
+    map[key] = q
+  }
+  return map
+}
+
+async function loadLfsColumnMetadata() {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}MetaData_LFS_Training_Dataset.xlsx`)
+    if (!res.ok) return
+    const buf = await res.arrayBuffer()
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' })
+    const name = wb.SheetNames[0]
+    if (!name) return
+    const ws = wb.Sheets[name]
+    if (!ws) return
+    lfsColumnQuestionByName.value = buildLfsMetadataMapFromSheet(ws)
+  } catch {
+    /* ملف الميتاداتا اختياري */
+  }
+}
+
+/** عنوان العرض في الجدول: نص السؤال من الميتاداتا إن وُجد (مع مطابقة غير حساسة لحالة الأحرف)، وإلا المعرّف كما في الملف */
+function columnHeaderLabel(tag: string): string {
+  const m = lfsColumnQuestionByName.value
+  let raw: string | undefined = m[tag]
+  if (!raw) {
+    const lower = tag.toLowerCase()
+    for (const k of Object.keys(m)) {
+      if (k.toLowerCase() === lower) {
+        raw = m[k]
+        break
+      }
+    }
+  }
+  if (raw) {
+    const cleaned = sanitizeLfsQuestionForDisplay(raw)
+    return cleaned || tag
+  }
+  return tag
+}
+
+onMounted(() => {
+  loadLfsColumnMetadata()
+})
 
 const filteredRows = computed(() => {
   if (filter.value === 'all') return rows.value
@@ -96,6 +201,33 @@ function parseWorkbook(data: ArrayBuffer, isCsv: boolean) {
   return XLSX.read(new Uint8Array(data), { type: 'array' })
 }
 
+/** أعمدة الوصف المرافقة للرمز (*_desc) — للترميز التقني ولا تُعرض للمستخدم النهائي */
+function isTechnicalDescColumn(key: string): boolean {
+  return key.trim().toLowerCase().endsWith('_desc')
+}
+
+function stripTechnicalDescColumns(rawRows: Record<string, any>[]): {
+  columns: string[]
+  rows: Record<string, any>[]
+} {
+  if (!rawRows.length) return { columns: [], rows: [] }
+  const allKeys = new Set<string>()
+  for (const row of rawRows) {
+    for (const k of Object.keys(row)) allKeys.add(k)
+  }
+  const keep = [...allKeys].filter((k) => !isTechnicalDescColumn(k))
+  if (!keep.length) return { columns: [], rows: [] }
+
+  const rows = rawRows.map((row) => {
+    const next: Record<string, any> = {}
+    for (const c of keep) {
+      next[c] = row[c]
+    }
+    return next
+  })
+  return { columns: keep, rows }
+}
+
 function processFile(file: File) {
   fileName.value = file.name
   const isCsv = file.name.toLowerCase().endsWith('.csv')
@@ -115,8 +247,11 @@ function processFile(file: File) {
     const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
     if (!rawRows.length || !rawRows[0]) return
 
-    columns.value = Object.keys(rawRows[0])
-    rows.value = rawRows.map((row, i) => ({
+    const { columns: visibleCols, rows: dataRows } = stripTechnicalDescColumns(rawRows)
+    if (!visibleCols.length) return
+
+    columns.value = visibleCols
+    rows.value = dataRows.map((row, i) => ({
       row_index: i,
       originalData: row,
       editableData: { ...row },
@@ -420,7 +555,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           <thead>
             <tr>
               <th class="th-num">#</th>
-              <th v-for="col in columns" :key="col">{{ col }}</th>
+              <th v-for="col in columns" :key="col" class="th-col" :title="columnHeaderLabel(col) !== col ? col : undefined">
+                {{ columnHeaderLabel(col) }}
+              </th>
               <th v-if="batchResult" class="th-details">تفاصيل</th>
               <th v-if="batchResult" class="th-score">درجة الثقة</th>
             </tr>
@@ -709,6 +846,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border-collapse: collapse;
   font-size: 0.875rem;
   min-width: 600px;
+  table-layout: auto;
 }
 .data-table thead {
   background: var(--color-background-mute);
@@ -717,13 +855,30 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   z-index: 2;
 }
 .data-table th {
-  padding: 0.7rem 0.85rem;
+  padding: 0.7rem 0.75rem;
   text-align: right;
   font-weight: 600;
   color: var(--color-heading);
   border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
   font-size: 0.82rem;
+  vertical-align: top;
+  /* خلفية لكل خلية حتى لا يختلط النص مع الصفوف عند sticky */
+  background: var(--color-background-mute);
+  box-sizing: border-box;
+}
+/* nowrap فقط للأعمدة الضيقة — لا تُفرض على رؤوس الحقول الطويلة */
+.data-table th.th-num,
+.data-table th.th-details,
+.data-table th.th-score {
+  white-space: nowrap;
+}
+.data-table th.th-col {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 8rem;
+  max-width: 13rem;
+  line-height: 1.35;
 }
 .th-num, .td-num {
   text-align: center;
@@ -830,7 +985,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 /* Data cells */
 .data-cell {
   padding: 0;
-  max-width: 200px;
+  min-width: 8rem;
+  max-width: 14rem;
+  vertical-align: top;
 }
 .cell-inner {
   position: relative;
