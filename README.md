@@ -149,7 +149,7 @@ backend/.venv/bin/python backend/scripts/eval_lfs_notes.py
    - **Root Directory:** `backend`  
    - **Build Command:** `pip install -r requirements.txt`  
    - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`  
-   - **Python:** 3.11  
+   - **Python:** **3.11.x** (في لوحة Render أو المتغير `PYTHON_VERSION`) — تجنّب **3.14+** لأن `pydantic-core` قد يُبنى من المصدر (Rust) ويفشل (`Read-only file system` / maturin). الملف [`backend/runtime.txt`](backend/runtime.txt) يثبّت الإصدار عند النشر من مجلد `backend`.  
 4. في **Environment** أضف (حسب ما تستخدم):
    - `ALLOWED_ORIGINS` = رابط الواجهة المنشورة فقط، مثال: `https://اسمك.netlify.app` (بدون شرطة أخيرة؛ يمكن عدة عناوين مفصولة بفاصلة إن لزم).  
    - مفتاح Gemini: إما `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + جدول `app_settings`، أو `GEMINI_API_KEY` مباشرة.  
