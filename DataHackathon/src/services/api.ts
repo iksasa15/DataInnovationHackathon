@@ -5,9 +5,11 @@ export function getApiBaseUrl(): string {
 }
 
 export interface FormData {
+  /** يُعرَض كـ `f_m_id` في استمارة LFS */
   name?: string | null
   age?: number | null
   gender?: string | null
+  nationality?: string | null
   education?: string | null
   job_title?: string | null
   years_experience?: number | null

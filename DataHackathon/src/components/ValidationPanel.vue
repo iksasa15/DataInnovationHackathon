@@ -6,6 +6,8 @@ const props = defineProps<{
   result: ValidationResult | null
   isLoading: boolean
   mode: 'live' | 'demo' | 'unknown'
+  /** عناوين عربية لأسماء الحقول كما في ميتاداتا LFS (مفتاح = اسم الحقل في رد الـ API) */
+  fieldLabels?: Record<string, string>
 }>()
 
 const CIRCUMFERENCE = 2 * Math.PI * 45
@@ -111,7 +113,7 @@ const severityMeta = (s: string) => {
           <li v-for="(err, i) in result.errors" :key="i" class="error-item">
             <span class="sev-dot" :style="{ background: severityMeta(err.severity).dot }"></span>
             <div class="error-body">
-              <div class="error-field">{{ err.field }}</div>
+              <div class="error-field">{{ props.fieldLabels?.[err.field] ?? err.field }}</div>
               <div class="error-msg">{{ err.message }}</div>
             </div>
             <span :class="['sev-label', severityMeta(err.severity).cls]">

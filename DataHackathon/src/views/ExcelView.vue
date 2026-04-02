@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
+import { columnQuestionLabel, loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { validateBatchDynamic } from '../services/api'
 import type { BatchResult, ValidationError } from '../services/api'
 
@@ -28,7 +29,18 @@ const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
 /** رسالة عند فشل الطلب للخادم (بعد الرفع التلقائي أو اليدوي) */
 const analysisError = ref<string | null>(null)
-const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
+/** فلترة الصفوف حسب الحالة أو أشدّ خطورة في الخلايا */
+type RowSeverityFilter =
+  | 'all'
+  | 'valid'
+  | 'negative'
+  | 'row_error'
+  | 'row_warning'
+  | 'sev_high'
+  | 'sev_medium'
+  | 'sev_low'
+
+const rowSeverityFilter = ref<RowSeverityFilter>('all')
 const detailsModalRow = ref<number | null>(null)
 
 /** قواعد فقط | Gemini فقط | الاثنان معاً */
@@ -38,111 +50,58 @@ const analysisEngine = ref<AnalysisEngine>('both')
 /** معرف العمود (tag) → نص السؤال من MetaData_LFS_Training_Dataset */
 const lfsColumnQuestionByName = ref<Record<string, string>>({})
 
-/**
- * إزالة عناصر الاستبيان النائبة [#token#] و #field# حتى لا تُعرض للمستخدم،
- * وإزالة جمل «الفترة المرجعية» التي تصبح فارغة بعد الحذف.
- */
-function sanitizeLfsQuestionForDisplay(text: string): string {
-  let s = text
-  s = s.replace(/\[\#[^\]]+\#\]/g, '')
-  s = s.replace(/\#[a-zA-Z0-9_]+\#/g, '…')
-  s = s.replace(
-    /\s*ملاحظة(?:\s*للباحث)?\s*:\s*الفترة المرجعية هي\s+(?:الى|إلى)\s+الموافق للتاريخ الميلادي\s+(?:الى|إلى)\s*/gi,
-    ' ',
-  )
-  s = s.replace(/\s*الفترة المرجعية هي\s+(?:الى|إلى)\s+الموافق للتاريخ الميلادي\s+(?:الى|إلى)\s*/gi, ' ')
-  s = s.replace(/\(\s*\)/g, '')
-  s = s.replace(/\[\s*\]/g, '')
-  s = s.replace(/\s{2,}/g, ' ')
-  s = s.replace(/\s*([\u060C،])\s*/g, '$1 ')
-  s = s.trim()
-  s = s.replace(/^،\s*/u, '')
-  s = s.replace(/\s+،\s*$/u, '،')
-  return s
-}
-
-/**
- * بناء فهرس tag → نص السؤال من ورقة الميتاداتا.
- * يتوافق مع `regenerate_lfs_column_labels.py`: العمود الأول = المعرف، الثاني = السؤال.
- * يدعم أسماء رؤوس `Column_Name` / `Question` أو أي ترتيب عمودين إن تغيّر الملف.
- */
-function buildLfsMetadataMapFromSheet(ws: XLSX.WorkSheet): Record<string, string> {
-  const map: Record<string, string> = {}
-
-  const asRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
-  if (asRows.length) {
-    const firstKeys = Object.keys(asRows[0] ?? {})
-    const colKey =
-      firstKeys.find((k) => k.trim().toLowerCase() === 'column_name') ?? firstKeys[0]
-    const qKey = firstKeys.find((k) => k.trim().toLowerCase() === 'question') ?? firstKeys[1]
-    if (colKey && qKey) {
-      for (const r of asRows) {
-        const key = r[colKey] != null ? String(r[colKey]).trim() : ''
-        const q = r[qKey] != null ? String(r[qKey]).trim() : ''
-        if (!key || !q) continue
-        if (key.toLowerCase() === 'column_name') continue
-        map[key] = q
-      }
-      if (Object.keys(map).length) return map
-    }
-  }
-
-  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
-  for (let i = 1; i < aoa.length; i++) {
-    const row = aoa[i]
-    if (!Array.isArray(row)) continue
-    const key = String(row[0] ?? '').trim()
-    const q = String(row[1] ?? '').trim()
-    if (!key || !q) continue
-    if (key.toLowerCase() === 'column_name') continue
-    map[key] = q
-  }
-  return map
-}
-
 async function loadLfsColumnMetadata() {
-  try {
-    const res = await fetch(`${import.meta.env.BASE_URL}MetaData_LFS_Training_Dataset.xlsx`)
-    if (!res.ok) return
-    const buf = await res.arrayBuffer()
-    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' })
-    const name = wb.SheetNames[0]
-    if (!name) return
-    const ws = wb.Sheets[name]
-    if (!ws) return
-    lfsColumnQuestionByName.value = buildLfsMetadataMapFromSheet(ws)
-  } catch {
-    /* ملف الميتاداتا اختياري */
-  }
+  lfsColumnQuestionByName.value = await loadLfsMetadataMap(import.meta.env.BASE_URL)
 }
 
-/** عنوان العرض في الجدول: نص السؤال من الميتاداتا إن وُجد (مع مطابقة غير حساسة لحالة الأحرف)، وإلا المعرّف كما في الملف */
+/** عنوان العرض في الجدول: نص السؤال من الميتاداتا إن وُجد، وإلا المعرّف كما في الملف */
 function columnHeaderLabel(tag: string): string {
-  const m = lfsColumnQuestionByName.value
-  let raw: string | undefined = m[tag]
-  if (!raw) {
-    const lower = tag.toLowerCase()
-    for (const k of Object.keys(m)) {
-      if (k.toLowerCase() === lower) {
-        raw = m[k]
-        break
-      }
-    }
-  }
-  if (raw) {
-    const cleaned = sanitizeLfsQuestionForDisplay(raw)
-    return cleaned || tag
-  }
-  return tag
+  return columnQuestionLabel(tag, lfsColumnQuestionByName.value)
 }
 
 onMounted(() => {
   loadLfsColumnMetadata()
 })
 
-const filteredRows = computed(() => {
-  if (filter.value === 'all') return rows.value
-  return rows.value.filter((r) => r.validation?.status === filter.value)
+function rowMatchesSeverityFilter(r: RowData, f: RowSeverityFilter): boolean {
+  const v = r.validation
+  switch (f) {
+    case 'all':
+      return true
+    case 'valid':
+      return v?.status === 'valid'
+    case 'negative':
+      return v != null && (v.status === 'error' || v.status === 'warning')
+    case 'row_error':
+      return v?.status === 'error'
+    case 'row_warning':
+      return v?.status === 'warning'
+    case 'sev_high':
+      return (v?.errors ?? []).some((e) => e.severity === 'high')
+    case 'sev_medium':
+      return (v?.errors ?? []).some((e) => e.severity === 'medium')
+    case 'sev_low':
+      return (v?.errors ?? []).some((e) => e.severity === 'low')
+    default:
+      return true
+  }
+}
+
+const filteredRows = computed(() => rows.value.filter((r) => rowMatchesSeverityFilter(r, rowSeverityFilter.value)))
+
+const rowFilterCounts = computed(() => {
+  const list = rows.value
+  const n = (pred: (r: RowData) => boolean) => list.filter(pred).length
+  return {
+    all: list.length,
+    valid: n((r) => r.validation?.status === 'valid'),
+    negative: n((r) => !!r.validation && (r.validation!.status === 'error' || r.validation!.status === 'warning')),
+    row_error: n((r) => r.validation?.status === 'error'),
+    row_warning: n((r) => r.validation?.status === 'warning'),
+    sev_high: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'high')),
+    sev_medium: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'medium')),
+    sev_low: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'low')),
+  }
 })
 
 const stats = computed(() => batchResult.value?.stats ?? null)
@@ -336,7 +295,7 @@ function processFile(file: File) {
 
     batchResult.value = null
     analysisError.value = null
-    filter.value = 'all'
+    rowSeverityFilter.value = 'all'
   }
 
   reader.readAsArrayBuffer(file)
@@ -382,7 +341,7 @@ function resetFile() {
   rows.value = []
   batchResult.value = null
   analysisError.value = null
-  filter.value = 'all'
+  rowSeverityFilter.value = 'all'
 }
 
 function norm(value: string) {
@@ -714,20 +673,26 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         </span>
       </div>
 
-      <!-- Filter tabs (after analysis) -->
-      <div v-if="batchResult" class="filter-tabs">
-        <button :class="['tab', filter === 'all' && 'tab-active']" @click="filter = 'all'">
-          الكل ({{ rows.length }})
-        </button>
-        <button :class="['tab', 'tab-error', filter === 'error' && 'tab-active']" @click="filter = 'error'">
-          أخطاء ({{ stats?.errors }})
-        </button>
-        <button :class="['tab', 'tab-warning', filter === 'warning' && 'tab-active']" @click="filter = 'warning'">
-          تحذيرات ({{ stats?.warnings }})
-        </button>
-        <button :class="['tab', 'tab-valid', filter === 'valid' && 'tab-active']" @click="filter = 'valid'">
-          سليمة ({{ stats?.valid }})
-        </button>
+      <!-- فلترة الصفوف حسب الحالة أو شدة الخطأ في الخلايا -->
+      <div v-if="batchResult" class="severity-filter-bar">
+        <label class="severity-filter-label" for="row-severity-filter">فلترة الصفوف</label>
+        <select
+          id="row-severity-filter"
+          v-model="rowSeverityFilter"
+          class="severity-select"
+        >
+          <option value="all">الكل ({{ rowFilterCounts.all }})</option>
+          <option value="valid">سليمة ({{ rowFilterCounts.valid }})</option>
+          <option value="negative">سلبية — غير سليمة ({{ rowFilterCounts.negative }})</option>
+          <option value="row_error">صف بحالة خطأ ({{ rowFilterCounts.row_error }})</option>
+          <option value="row_warning">صف بحالة تحذير ({{ rowFilterCounts.row_warning }})</option>
+          <option value="sev_high">فيها خطأ حرج (خلية) ({{ rowFilterCounts.sev_high }})</option>
+          <option value="sev_medium">فيها تحذير متوسط ({{ rowFilterCounts.sev_medium }})</option>
+          <option value="sev_low">فيها ملاحظة خفيفة ({{ rowFilterCounts.sev_low }})</option>
+        </select>
+        <span v-if="rowSeverityFilter !== 'all'" class="severity-filter-hint">
+          يعرض {{ filteredRows.length }} من {{ rows.length }} صف
+        </span>
       </div>
 
       <!-- Legend -->
@@ -1173,6 +1138,43 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .tab-error.tab-active { border-color: #ef4444; color: #ef4444; }
 .tab-warning.tab-active { border-color: #f59e0b; color: #f59e0b; }
 .tab-valid.tab-active { border-color: #10b981; color: #10b981; }
+
+.severity-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--color-background-mute);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+.severity-filter-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  white-space: nowrap;
+}
+.severity-select {
+  flex: 1 1 14rem;
+  min-width: min(100%, 18rem);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.severity-filter-hint {
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.82;
+  width: 100%;
+  flex-basis: 100%;
+}
 
 /* Legend */
 .legend {

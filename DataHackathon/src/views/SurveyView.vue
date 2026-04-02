@@ -1,21 +1,106 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import ValidationPanel from '../components/ValidationPanel.vue'
 import { validateForm, checkHealth } from '../services/api'
 import type { FormData, ValidationResult, HealthStatus } from '../services/api'
+import { columnQuestionLabel, loadLfsMetadataMap } from '../utils/lfsMetadata'
 
-const form = ref<FormData>({
-  name: '',
-  age: null,
-  gender: '',
-  education: '',
-  job_title: '',
-  years_experience: null,
-  monthly_salary: null,
-  sector: '',
-  marital_status: '',
-  children_count: null,
+/**
+ * حقول بأسماء أعمدة LFS كما في `MetaData_LFS_Training_Dataset.xlsx` وملفات Excel/CSV للمسح.
+ * تُحوَّل داخلياً إلى `FormData` لمسار `/api/validate`.
+ */
+interface LfsLiveSurveyFields {
+  f_m_id: string
+  gender: string
+  age: number | null
+  nationality: string
+  q_301: string
+  marage_status: string
+  q_537_e_job: string
+  /** سنة بداية العمل — تُستَخدَم لتقدير سنوات الخبرة للحارس الدلالي */
+  d_ystartwk: number | null
+  q_602_val: number | null
+  q_534: string
+  children_count: number | null
+}
+
+function emptyLfsSurvey(): LfsLiveSurveyFields {
+  return {
+    f_m_id: '',
+    gender: '',
+    age: null,
+    nationality: '',
+    q_301: '',
+    marage_status: '',
+    q_537_e_job: '',
+    d_ystartwk: null,
+    q_602_val: null,
+    q_534: '',
+    children_count: null,
+  }
+}
+
+const form = ref<LfsLiveSurveyFields>(emptyLfsSurvey())
+const lfsMeta = ref<Record<string, string>>({})
+
+function lfsSurveyToApiPayload(s: LfsLiveSurveyFields): FormData {
+  const y = s.d_ystartwk
+  const cy = new Date().getFullYear()
+  let years_experience: number | undefined
+  if (typeof y === 'number' && y > 1950 && y <= cy) {
+    years_experience = Math.max(0, cy - y)
+  }
+  return {
+    name: s.f_m_id?.trim() || undefined,
+    age: s.age ?? undefined,
+    gender: s.gender || undefined,
+    nationality: s.nationality?.trim() || undefined,
+    education: s.q_301 || undefined,
+    job_title: s.q_537_e_job?.trim() || undefined,
+    years_experience,
+    monthly_salary: s.q_602_val ?? undefined,
+    sector: s.q_534 || undefined,
+    marital_status: s.marage_status || undefined,
+    children_count: s.children_count ?? undefined,
+  }
+}
+
+function meaningfulFieldCount(s: LfsLiveSurveyFields): number {
+  const p = lfsSurveyToApiPayload(s)
+  let n = 0
+  for (const [k, v] of Object.entries(p)) {
+    if (k === 'name') continue
+    if (v === null || v === undefined || v === '' || v === 0) continue
+    n++
+  }
+  return n
+}
+
+const validationFieldLabels = computed(() => {
+  const m = lfsMeta.value
+  const L = (tag: string, fallback: string) => {
+    const q = columnQuestionLabel(tag, m)
+    return q === tag ? fallback : q
+  }
+  return {
+    name: L('f_m_id', 'معرّف الفرد'),
+    age: L('age', 'العمر'),
+    gender: L('gender', 'جنس الفرد'),
+    nationality: L('nationality', 'جنسية الفرد'),
+    education: L('q_301', 'أعلى مؤهل'),
+    job_title: L('q_537_e_job', 'المسمى الوظيفي'),
+    years_experience: 'سنوات الخبرة (تقدير من سنة بداية العمل)',
+    monthly_salary: L('q_602_val', 'الأجر الشهري'),
+    sector: L('q_534', 'القطاع المؤسسي'),
+    marital_status: L('marage_status', 'الحالة الاجتماعية'),
+    children_count: 'عدد الأبناء',
+  }
 })
+
+function labelFor(tag: string, fallback: string): string {
+  const q = columnQuestionLabel(tag, lfsMeta.value)
+  return q === tag ? fallback : q
+}
 
 const validationResult = ref<ValidationResult | null>(null)
 const isValidating = ref(false)
@@ -26,15 +111,42 @@ const showSuccess = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const EDUCATION_OPTIONS = [
-  'ابتدائي', 'متوسط', 'ثانوي', 'دبلوم',
-  'بكالوريوس', 'ماجستير', 'دكتوراه',
+  'ابتدائي',
+  'متوسط',
+  'ثانوي',
+  'دبلوم',
+  'بكالوريوس',
+  'ماجستير',
+  'دكتوراه',
 ]
 const SECTOR_OPTIONS = ['حكومي', 'خاص', 'أهلي / غير ربحي', 'لا ينطبق']
 const MARITAL_OPTIONS = ['أعزب', 'متزوج', 'مطلق', 'أرمل', 'عزباء', 'متزوجة', 'مطلقة', 'أرملة']
 const GENDER_OPTIONS = ['ذكر', 'أنثى']
 
-const RANDOM_NAMES = ['أحمد محمد', 'سارة علي', 'خالد عبدالله', 'نورة سعد', 'فهد حسن', 'مريم إبراهيم', 'عمر يوسف', 'هند عبدالرحمن', 'تركي فيصل', 'لمى ناصر']
-const RANDOM_JOBS = ['مهندس برمجيات', 'مدير مالي', 'طبيب عام', 'معلم', 'محاسب', 'مدير تسويق', 'ممرض', 'موظف إداري', 'فني مختبر', 'باحث']
+const RANDOM_NAMES = [
+  'أحمد محمد',
+  'سارة علي',
+  'خالد عبدالله',
+  'نورة سعد',
+  'فهد حسن',
+  'مريم إبراهيم',
+  'عمر يوسف',
+  'هند عبدالرحمن',
+  'تركي فيصل',
+  'لمى ناصر',
+]
+const RANDOM_JOBS = [
+  'مهندس برمجيات',
+  'مدير مالي',
+  'طبيب عام',
+  'معلم',
+  'محاسب',
+  'مدير تسويق',
+  'ممرض',
+  'موظف إداري',
+  'فني مختبر',
+  'باحث',
+]
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!
@@ -42,22 +154,25 @@ function pick<T>(arr: readonly T[]): T {
 
 function generateRandomData() {
   const gender = pick(GENDER_OPTIONS)
+  const cy = new Date().getFullYear()
   form.value = {
-    name: pick(RANDOM_NAMES),
+    f_m_id: `DEMO-${1000 + Math.floor(Math.random() * 9000)}`,
     age: 22 + Math.floor(Math.random() * 35),
     gender,
-    education: pick(EDUCATION_OPTIONS),
-    job_title: pick(RANDOM_JOBS),
-    years_experience: Math.floor(Math.random() * 20),
-    monthly_salary: 5000 + Math.floor(Math.random() * 25000),
-    sector: pick(SECTOR_OPTIONS),
-    marital_status: pick(MARITAL_OPTIONS),
+    nationality: 'سعودي / سعودية',
+    q_301: pick(EDUCATION_OPTIONS),
+    marage_status: pick(MARITAL_OPTIONS),
+    q_537_e_job: pick(RANDOM_JOBS),
+    d_ystartwk: cy - Math.floor(Math.random() * 22) - 1,
+    q_602_val: 5000 + Math.floor(Math.random() * 25000),
+    q_534: pick(SECTOR_OPTIONS),
     children_count: Math.floor(Math.random() * 5),
   }
   validationResult.value = null
 }
 
 onMounted(async () => {
+  lfsMeta.value = await loadLfsMetadataMap(import.meta.env.BASE_URL)
   try {
     health.value = await checkHealth()
   } catch {
@@ -68,16 +183,13 @@ onMounted(async () => {
 function triggerValidation() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(async () => {
-    const filled = Object.entries(form.value).filter(
-      ([k, v]) => v !== null && v !== '' && v !== 0 && k !== 'name',
-    ).length
-    if (filled < 2) {
+    if (meaningfulFieldCount(form.value) < 2) {
       validationResult.value = null
       return
     }
     isValidating.value = true
     try {
-      validationResult.value = await validateForm(form.value)
+      validationResult.value = await validateForm(lfsSurveyToApiPayload(form.value))
       apiError.value = false
     } catch {
       apiError.value = true
@@ -93,7 +205,7 @@ async function handleSubmit() {
   if (debounceTimer) clearTimeout(debounceTimer)
   isSubmitting.value = true
   try {
-    validationResult.value = await validateForm(form.value)
+    validationResult.value = await validateForm(lfsSurveyToApiPayload(form.value))
     apiError.value = false
     if (validationResult.value.status === 'valid' || validationResult.value.confidence_score >= 70) {
       showSuccess.value = true
@@ -107,11 +219,7 @@ async function handleSubmit() {
 }
 
 function resetForm() {
-  form.value = {
-    name: '', age: null, gender: '', education: '',
-    job_title: '', years_experience: null, monthly_salary: null,
-    sector: '', marital_status: '', children_count: null,
-  }
+  form.value = emptyLfsSurvey()
   validationResult.value = null
 }
 
@@ -119,24 +227,26 @@ const mode = ref<'live' | 'demo' | 'unknown'>('unknown')
 watch(health, (h) => {
   if (h) mode.value = h.mode as 'live' | 'demo'
 })
+
+const currentYear = new Date().getFullYear()
 </script>
 
 <template>
   <div class="survey-page">
-    <!-- Page header -->
     <div class="page-head">
-      <h1 class="page-title">استمارة الاستبيان</h1>
+      <h1 class="page-title">استمارة LFS (الحارس الدلالي)</h1>
       <p class="page-desc">
-        أدخل البيانات وسيقوم <strong>الحارس الدلالي</strong> بالتحقق منها لحظياً باستخدام الذكاء الاصطناعي.
+        حقول بأسماء الأعمدة كما في <strong>MetaData_LFS_Training_Dataset</strong> وملفات Excel؛ يُحوَّل الإدخال
+        تلقائياً لصيغة التحقق. التحقق اللحظي يبدأ بعد ملء حقلين على الأقل (غير المعرّف) والتوقف عن الكتابة قليلاً.
       </p>
 
-      <!-- API status banner -->
       <div v-if="apiError" class="banner banner-error">
-        <strong>⚠ تعذّر الاتصال بالخادم</strong> — الـ backend غير مشغّل على المنفذ 8000.<br>
+        <strong>⚠ تعذّر الاتصال بالخادم</strong> — الـ backend غير مشغّل على المنفذ 8000.<br />
         من جذر المشروع: <code>./run.sh</code> أو من مجلد backend: <code>uvicorn main:app --reload --port 8000</code>
       </div>
       <div v-else-if="health && health.mode === 'demo'" class="banner banner-warning">
-        🔧 وضع تجريبي — أضف <code>OPENAI_API_KEY</code> أو <code>GROQ_API_KEY</code> في ملف <code>backend/.env</code> لتفعيل النموذج اللغوي
+        🔧 وضع تجريبي — أضف <code>OPENAI_API_KEY</code> أو <code>GROQ_API_KEY</code> في ملف
+        <code>backend/.env</code> لتفعيل النموذج اللغوي
       </div>
       <div v-else-if="health && health.mode === 'live'" class="banner banner-success">
         ✓ متصل — يعمل بنموذج
@@ -146,95 +256,99 @@ watch(health, (h) => {
     </div>
 
     <div class="survey-layout">
-      <!-- Form -->
       <form class="survey-form" @submit.prevent="handleSubmit" novalidate>
-
-        <!-- Section: Personal -->
         <section class="form-section">
           <h2 class="form-section-title">
-            <span class="sec-num">01</span> المعلومات الشخصية
+            <span class="sec-num">01</span>
+            معرّفات
+          </h2>
+          <div class="fields-grid">
+            <div class="field field-full">
+              <label for="f_m_id">{{ labelFor('f_m_id', 'معرّف الفرد') }} <span class="hint">(f_m_id)</span></label>
+              <input id="f_m_id" v-model="form.f_m_id" type="text" placeholder="اختياري — يُرسَل كاسم للخادم" />
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <span class="sec-num">02</span>
+            الخصائص الديموغرافية
           </h2>
           <div class="fields-grid">
             <div class="field">
-              <label for="name">الاسم (اختياري)</label>
-              <input id="name" v-model="form.name" type="text" placeholder="محمد أحمد…" />
+              <label for="age">{{ labelFor('age', 'العمر') }} <span class="req">*</span></label>
+              <input id="age" v-model.number="form.age" type="number" min="15" max="100" placeholder="مثال: 35" />
             </div>
             <div class="field">
-              <label for="age">العمر <span class="req">*</span></label>
-              <input
-                id="age"
-                v-model.number="form.age"
-                type="number"
-                min="15"
-                max="100"
-                placeholder="مثال: 35"
-              />
-            </div>
-            <div class="field">
-              <label for="gender">الجنس</label>
+              <label for="gender">{{ labelFor('gender', 'جنس الفرد') }}</label>
               <select id="gender" v-model="form.gender">
                 <option value="">— اختر —</option>
                 <option v-for="g in GENDER_OPTIONS" :key="g" :value="g">{{ g }}</option>
               </select>
             </div>
+            <div class="field field-full">
+              <label for="nationality">{{ labelFor('nationality', 'جنسية الفرد') }}</label>
+              <input id="nationality" v-model="form.nationality" type="text" placeholder="مثال: سعودي" />
+            </div>
           </div>
         </section>
 
-        <!-- Section: Education -->
         <section class="form-section">
           <h2 class="form-section-title">
-            <span class="sec-num">02</span> المعلومات التعليمية
+            <span class="sec-num">03</span>
+            التعليم والمهنة
           </h2>
           <div class="fields-grid">
             <div class="field field-full">
-              <label for="education">المستوى التعليمي <span class="req">*</span></label>
-              <select id="education" v-model="form.education">
-                <option value="">— اختر المؤهل العلمي —</option>
+              <label for="q_301">{{ labelFor('q_301', 'أعلى مؤهل') }} <span class="req">*</span></label>
+              <select id="q_301" v-model="form.q_301">
+                <option value="">— اختر —</option>
                 <option v-for="e in EDUCATION_OPTIONS" :key="e" :value="e">{{ e }}</option>
               </select>
             </div>
+            <div class="field field-full">
+              <label for="q_537_e_job">{{ labelFor('q_537_e_job', 'المسمى الوظيفي') }} <span class="req">*</span></label>
+              <input
+                id="q_537_e_job"
+                v-model="form.q_537_e_job"
+                type="text"
+                placeholder="نص حر كما في الاستمارة"
+              />
+            </div>
+            <div class="field">
+              <label for="d_ystartwk">{{ labelFor('d_ystartwk', 'سنة بداية العمل') }}</label>
+              <input
+                id="d_ystartwk"
+                v-model.number="form.d_ystartwk"
+                type="number"
+                :min="1970"
+                :max="currentYear"
+                placeholder="يُحسب منها تقدير سنوات الخبرة"
+              />
+            </div>
           </div>
         </section>
 
-        <!-- Section: Professional -->
         <section class="form-section">
           <h2 class="form-section-title">
-            <span class="sec-num">03</span> المعلومات الوظيفية
+            <span class="sec-num">04</span>
+            العمل والأجر
           </h2>
           <div class="fields-grid">
-            <div class="field field-full">
-              <label for="job_title">المسمى الوظيفي <span class="req">*</span></label>
-              <input
-                id="job_title"
-                v-model="form.job_title"
-                type="text"
-                placeholder="مثال: مدير مالي، مهندس برمجيات، طبيب…"
-              />
-            </div>
             <div class="field">
-              <label for="years_experience">سنوات الخبرة <span class="req">*</span></label>
+              <label for="q_602_val">{{ labelFor('q_602_val', 'الأجر الشهري') }}</label>
               <input
-                id="years_experience"
-                v-model.number="form.years_experience"
+                id="q_602_val"
+                v-model.number="form.q_602_val"
                 type="number"
                 min="0"
-                max="60"
-                placeholder="مثال: 8"
+                placeholder="ر.س"
               />
             </div>
             <div class="field">
-              <label for="monthly_salary">الراتب الشهري (ر.س)</label>
-              <input
-                id="monthly_salary"
-                v-model.number="form.monthly_salary"
-                type="number"
-                min="0"
-                placeholder="مثال: 12000"
-              />
-            </div>
-            <div class="field">
-              <label for="sector">القطاع</label>
-              <select id="sector" v-model="form.sector">
+              <label for="q_534">{{ labelFor('q_534', 'القطاع') }}</label>
+              <select id="q_534" v-model="form.q_534">
                 <option value="">— اختر —</option>
                 <option v-for="s in SECTOR_OPTIONS" :key="s" :value="s">{{ s }}</option>
               </select>
@@ -242,15 +356,15 @@ watch(health, (h) => {
           </div>
         </section>
 
-        <!-- Section: Family -->
         <section class="form-section">
           <h2 class="form-section-title">
-            <span class="sec-num">04</span> المعلومات الأسرية
+            <span class="sec-num">05</span>
+            الأسرة
           </h2>
           <div class="fields-grid">
             <div class="field">
-              <label for="marital_status">الحالة الاجتماعية</label>
-              <select id="marital_status" v-model="form.marital_status">
+              <label for="marage_status">{{ labelFor('marage_status', 'الحالة الاجتماعية') }}</label>
+              <select id="marage_status" v-model="form.marage_status">
                 <option value="">— اختر —</option>
                 <option v-for="m in MARITAL_OPTIONS" :key="m" :value="m">{{ m }}</option>
               </select>
@@ -263,13 +377,12 @@ watch(health, (h) => {
                 type="number"
                 min="0"
                 max="20"
-                placeholder="مثال: 2"
+                placeholder="مكمّل للتحقق من التناقضات"
               />
             </div>
           </div>
         </section>
 
-        <!-- Actions -->
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
             <span v-if="isSubmitting" class="btn-spinner"></span>
@@ -279,20 +392,17 @@ watch(health, (h) => {
           <button type="button" class="btn btn-ghost" @click="resetForm">إعادة تعيين</button>
         </div>
 
-        <!-- Success toast -->
         <Transition name="fade">
-          <div v-if="showSuccess" class="toast toast-success">
-            ✓ البيانات مقبولة — درجة الثقة مرتفعة
-          </div>
+          <div v-if="showSuccess" class="toast toast-success">✓ البيانات مقبولة — درجة الثقة مرتفعة</div>
         </Transition>
       </form>
 
-      <!-- Validation Panel -->
       <div class="panel-col">
         <ValidationPanel
           :result="validationResult"
           :is-loading="isValidating"
           :mode="mode"
+          :field-labels="validationFieldLabels"
         />
       </div>
     </div>
@@ -306,7 +416,6 @@ watch(health, (h) => {
   padding: 2rem 2rem 4rem;
 }
 
-/* Page header */
 .page-head {
   margin-bottom: 2rem;
 }
@@ -323,7 +432,13 @@ watch(health, (h) => {
   margin-bottom: 1rem;
 }
 
-/* Banners */
+.hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
 .banner {
   margin-top: 0.75rem;
   padding: 0.65rem 1rem;
@@ -332,16 +447,27 @@ watch(health, (h) => {
   line-height: 1.5;
 }
 .banner code {
-  background: rgba(0,0,0,0.08);
+  background: rgba(0, 0, 0, 0.08);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.82rem;
 }
-.banner-error   { background: rgba(239,68,68,0.1);   color: #b91c1c; border: 1px solid rgba(239,68,68,0.25); }
-.banner-warning { background: rgba(245,158,11,0.1);  color: #92400e; border: 1px solid rgba(245,158,11,0.25); }
-.banner-success { background: rgba(16,185,129,0.1);  color: #065f46; border: 1px solid rgba(16,185,129,0.25); }
+.banner-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.banner-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.banner-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
 
-/* Layout */
 .survey-layout {
   display: grid;
   grid-template-columns: 1fr 420px;
@@ -362,14 +488,12 @@ watch(health, (h) => {
   }
 }
 
-/* Form */
 .survey-form {
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
 }
 
-/* Section */
 .form-section {
   background: var(--color-background-soft);
   border: 1px solid var(--color-border);
@@ -389,26 +513,26 @@ watch(health, (h) => {
   font-size: 0.7rem;
   font-weight: 800;
   color: #0e7490;
-  background: rgba(6,182,212,0.12);
+  background: rgba(6, 182, 212, 0.12);
   padding: 0.2rem 0.5rem;
   border-radius: 0.25rem;
   letter-spacing: 0.05em;
 }
 
-/* Fields grid */
 .fields-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 @media (max-width: 560px) {
-  .fields-grid { grid-template-columns: 1fr; }
+  .fields-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .field-full {
   grid-column: 1 / -1;
 }
 
-/* Field */
 .field {
   display: flex;
   flex-direction: column;
@@ -440,7 +564,6 @@ watch(health, (h) => {
   border-color: #0e7490;
 }
 
-/* Actions */
 .form-actions {
   display: flex;
   gap: 0.75rem;
@@ -482,15 +605,18 @@ watch(health, (h) => {
 .btn-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255,255,255,0.4);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-/* Toast */
 .toast {
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
@@ -498,24 +624,42 @@ watch(health, (h) => {
   font-weight: 500;
 }
 .toast-success {
-  background: rgba(16,185,129,0.12);
+  background: rgba(16, 185, 129, 0.12);
   color: #065f46;
-  border: 1px solid rgba(16,185,129,0.3);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
-.fade-enter-active, .fade-leave-active {
+.fade-enter-active,
+.fade-leave-active {
   transition: opacity 0.4s ease;
 }
-.fade-enter-from, .fade-leave-to {
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
 
 @media (prefers-color-scheme: dark) {
-  .sec-num { color: #22d3ee; background: rgba(34,211,238,0.12); }
-  .field input:focus, .field select:focus { border-color: #22d3ee; }
-  .btn-primary { background: #0891b2; }
-  .btn-primary:hover:not(:disabled) { background: #0e7490; }
-  .banner-warning { color: #fef3c7; }
-  .banner-success { color: #d1fae5; }
-  .banner-error   { color: #fecaca; }
+  .sec-num {
+    color: #22d3ee;
+    background: rgba(34, 211, 238, 0.12);
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: #22d3ee;
+  }
+  .btn-primary {
+    background: #0891b2;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #0e7490;
+  }
+  .banner-warning {
+    color: #fef3c7;
+  }
+  .banner-success {
+    color: #d1fae5;
+  }
+  .banner-error {
+    color: #fecaca;
+  }
 }
 </style>

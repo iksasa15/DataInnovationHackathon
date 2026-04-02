@@ -92,6 +92,7 @@ class FormData(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
+    nationality: Optional[str] = None
     education: Optional[str] = None
     job_title: Optional[str] = None
     years_experience: Optional[int] = None
