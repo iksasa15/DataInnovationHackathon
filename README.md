@@ -1,30 +1,70 @@
-# الحارس الدلالي — مساعد ذكي للتحقق من التناقضات المنطقية والدلالية
+# الحارس الدلالي (عين) — مساعد ذكي للتحقق من التناقضات المنطقية والدلالية
 
-**[افتح التطبيق — الصفحة الرئيسية (GitHub Pages)](https://iksasa15.github.io/DataInnovationHackathon/#/)**
+نموذج أولي يلبي **مسار المعالجة الذكية للبيانات** في **هاكاثون الابتكار في البيانات** (الطريق إلى الرياض 2026)، وفق **دليل المتسابق — المسار الثاني**.  
+اسم التحدي في الوثيقة الرسمية: **المصحح الذكي للأخطاء المنطقية (الحارس الدلالي)**. الواجهة العامة تُعرض للمستخدم تحت اسم **عين**.
 
-> **إن ظهر نص README بدل الواجهة:** المستودع كان ينشر **جذر الفرع** (`/`) فيعرض `README.md`. عيّن المصدر إلى مجلد **`docs`** بعد أول نشر ناجح من Actions:
->
-> **Settings → Pages → Build and deployment → Deploy from a branch → Branch: `main` → Folder: `/docs`** (وليس `/ (root)`).
->
-> الـ workflow **`Deploy frontend to GitHub Pages (docs)`** يبني Vue ويدفع `dist` إلى **`docs/`** على `main`. بعد الدمج انتظر اكتمال Actions أو شغّل الـ workflow يدوياً.
->
-> روابط مباشرة للصفحات: `…/DataInnovationHackathon/#/` (رئيسية)، `…/#/survey`، `…/#/analysis` — تجنّب `/analysis` بدون `#` على Pages.
+| العنصر | الرابط |
+|--------|--------|
+| **الواجهة المنشورة (GitHub Pages)** | [https://iksasa15.github.io/DataInnovationHackathon/#/](https://iksasa15.github.io/DataInnovationHackathon/#/) |
+| **الاستمارة الحية** | […/#/survey](https://iksasa15.github.io/DataInnovationHackathon/#/survey) |
+| **تحليل Excel / CSV** | […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) |
+| **اختبارات (API، Swagger، تشخيص، Gemini)** | […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) |
+| **الـ API (مثال منشور)** | `https://datainnovationhackathon.onrender.com` — يُضبط عبر `DataHackathon/.env.production` (`VITE_API_URL`) وSecret في GitHub Actions إن لزم |
 
-نموذج أولي (POC) لمسار **المعالجة الذكية للبيانات** في هاكثون الابتكار في البيانات (الطريق إلى الرياض 2026).  
-يربط واجهات **نماذج لغوية كبيرة (LLM)** بمنظومة جمع البيانات: **استمارة حية** و**رفع ملفات Excel/CSV**، مع مخرجات موحّدة تشمل **درجة ثقة** و**حالة** (valid / warning / error) و**أخطاء مرتبطة بالحقول** و**اقتراحات**.
+> **مهم لـ GitHub Pages:** المصدر يجب أن يكون مجلد **`docs`** وليس جذر الفرع، وإلا يظهر نص README بدل التطبيق.  
+> **Settings → Pages → Branch: `main` → Folder: `/docs`**.  
+> Workflow **`Deploy frontend to GitHub Pages (docs)`** يبني Vue من `DataHackathon` ويدفع `dist` إلى `docs/`.
+
+> **روابط مباشرة:** على Pages يُستخدم **توجيه الهاش** (`#/survey` وليس `/survey` فقط) لأن التطبيق SPA.
 
 ---
+
+## فهرس
+
+1. [مطابقة دليل المتسابق](#match-guide)
+2. [المنهجية](#methodology)
+3. [المتطلبات التقنية](#requirements)
+4. [استنساخ وتشغيل محلي](#local-setup)
+5. [دليل المحكّم](#judges)
+6. [النشر Deploy](#deploy)
+7. [مفاتيح API للمحكمين](#api-keys)
+8. [الفيديو التوضيحي](#video)
+9. [هيكل المستودع](#structure)
+10. [التواصل والترخيص](#contact)
+
+---
+
+<a id="match-guide"></a>
+
+## مطابقة دليل المتسابق
+
+| مطلوب الدليل | تنفيذ في المشروع |
+|--------------|------------------|
+| رفع بيانات اختبار (Excel) مماثلة للتدريب | صفحة **تحليل الملف** — رفع Excel/CSV وتحقق دفعة عبر `/api/validate-batch-dynamic` |
+| استمارة حية (Live Form) | صفحة **الحارس الدلالي** — تحقق أثناء الإدخال (مع **debounce** قصير بعد التوقف عن الكتابة) |
+| ليس Excel وحده | الواجهة تدعم **الاثنين معاً** |
+| ربط LLM بمنظومة الجمع | FastAPI + برومبتات + Gemini (ومسارات بديلة) + طبقة قواعد hybrid |
+| تسليم: README + نشر + فيديو | هذا الملف + جدول الروابط أعلاه + قسم [الفيديو](#video) |
+| مستودع خاص وإضافة المحكمين | يجب أن يبقى المستودع **Private** وإضافة حسابات المحكمين في GitHub **قبل التقييم** |
+
+**معيار التقييم الجوهري (الدليل):** القدرة على اكتشاف التناقضات **في أثناء الإدخال**. في الاستمارة يظهر التحقق بعد ملء حقول كافية وتوقف الإدخال لحظات (لتقليل طلبات الـ API)، مع عرض **درجة ثقة** و**حالة** و**ملاحظات** فور وصول الرد.
+
+---
+
+<a id="methodology"></a>
 
 ## المنهجية (ربط الـ LLM بمنصة الاستبيان)
 
-1. **واجهة جمع**: الواجهة الأمامية (Vue 3 + Vite) ترسل بيانات الاستمارة أو صفوف Excel إلى **REST API** (FastAPI).
+1. **واجهة جمع**: الواجهة (Vue 3 + Vite) ترسل بيانات الاستمارة أو صفوف Excel إلى **REST API** (FastAPI).
 2. **تحليل ذكي**: الخادم يبني **برومبتًا** يتضمن تعليمات عربية، **Few-Shot** (أمثلة مبسّطة + أمثلة بأسماء حقول LFS عند التحقق الديناميكي)، وقاموس **معاني الأعمدة** (ميتاداتا) عند توفرها.
-3. **مزوّد LLM**: يُفضّل **Google Gemini** لمسار Excel الديناميكي (مخرجات JSON). يمكن استخدام **Groq** أو **OpenAI** لمسار الاستمارة المبسّطة عند ضبط المتغيرات في `.env`.
-4. **طبقة مكمّلة (قواعد صريحة)**: قواعد مستوحاة من **LFS Business Rules** تُطبَّق كـ **hybrid** وتُدمج مع مخرجات النموذج لتقليل الأخطاء الواضحة (عمر/تعليم، تعارض قطاع/نشاط في حالات محددة).
-5. **تقليص الأعمدة**: للجداول العريضة (مثل LFS) يُختار حد أقصى من الأعمدة ذات الأولوية + الأعمدة ذات القيم في الصف لتقليل حجم الطلب إلى النموذج (`LFS_MAX_COLUMNS`).
-6. **الاستخدام المقصود للبيانات**: البيانات المزوّدة تُستخدم **للمحاكاة والاختبار** عبر الـ API والواجهة؛ لا يُفترض **تدريب نموذج** على بيانات الهيئة داخل هذا المستودع.
+3. **مزوّد LLM**: يُفضّل **Google Gemini** لمسار Excel الديناميكي (مخرجات JSON). يمكن استخدام **Groq** أو **OpenAI** لمسار الاستمارة عند ضبط المتغيرات في `backend/.env`.
+4. **طبقة مكمّلة (قواعد صريحة)**: قواعد مستوحاة من **LFS Business Rules** تُطبَّق كـ **hybrid** وتُدمج مع مخرجات النموذج (عمر/تعليم، تعارض قطاع/نشاط، إلخ).
+5. **تقليص الأعمدة**: للجداول العريضة يُختار حد أقصى من الأعمدة ذات الأولوية + الأعمدة ذات القيم في الصف (`LFS_MAX_COLUMNS`).
+6. **استخدام بيانات التدريب**: **محاكاة واختبار** عبر الـ API والواجهة؛ لا يُفترض **تدريب نموذج** على بيانات الهيئة داخل هذا المستودع (متوافق مع منهجية الدليل).
 
 ---
+
+<a id="requirements"></a>
 
 ## المتطلبات التقنية
 
@@ -37,10 +77,12 @@
 
 ### مكتبات رئيسية
 
-- **الخادم**: FastAPI، Uvicorn، `google-generativeai`، `openai` (للمتوافقين مع OpenAI API)، pydantic، httpx، pandas/openpyxl (سكربتات التقييم/الميتاداتا).
-- **الواجهة**: Vue 3، Vue Router، Vite، SheetJS (`xlsx`).
+- **الخادم:** FastAPI، Uvicorn، `google-generativeai`، `openai`، Pydantic، httpx؛ pandas/openpyxl في `requirements-scripts.txt` (سكربتات تقييم/ميتاداتا — ليس إلزامياً على Render لتفادي OOM).
+- **الواجهة:** Vue 3، Vue Router، Pinia، Vite، SheetJS (`xlsx`)، iconv-lite، **Chart.js** + **vue-chartjs** (رسوم مقارنة في الصفحة الرئيسية).
 
 ---
+
+<a id="local-setup"></a>
 
 ## استنساخ المستودع والتشغيل المحلي
 
@@ -56,19 +98,19 @@ cd DataInnovationHackathon
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate   # على Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-# لتشغيل سكربت التقييم eval_lfs_notes.py محلياً:
-# pip install -r requirements-scripts.txt
 cp .env.example .env
 ```
 
-عدّل الملف `backend/.env` وأضف مفتاحًا واحدًا على الأقل للوضع الذكي:
+عدّل `backend/.env` وأضف مفتاحاً واحداً على الأقل للوضع الذكي:
 
-- `GEMINI_API_KEY` (مُفضّل لتحليل Excel الديناميكي)، أو  
-- `GROQ_API_KEY` / `OPENAI_API_KEY` (مسارات بديلة حسب الكود).
+- `GEMINI_API_KEY` (مُفضّل لـ Excel الديناميكي)، أو  
+- `GROQ_API_KEY` / `OPENAI_API_KEY` (مسارات بديلة).
 
-متغيرات اختيارية: `PORT` (افتراضي 8000)، `LFS_MAX_COLUMNS`، `DYNAMIC_BATCH_SIZE`.
+اختياري: `PORT` (افتراضي 8000)، `LFS_MAX_COLUMNS`، `DYNAMIC_BATCH_SIZE`.
+
+للسكربتات المحلية (تقييم LFS): `pip install -r requirements-scripts.txt`
 
 ### 3) إعداد الواجهة (Frontend)
 
@@ -77,31 +119,37 @@ cd ../DataHackathon
 npm install
 ```
 
+أنشئ `.env` أو انسخ من `.env.example` وعيّن:
+
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
+
 ### 4) التشغيل
 
-**خيار أ — سكربت واحد (يُشغّل الـ API ثم الواجهة):** من جذر المشروع
+**من جذر المشروع (موصى به):**
 
 ```bash
 chmod +x run.sh
 ./run.sh
 ```
 
-**خيار ب — طرفيتان:**
+**أو طرفيتان:**
 
 ```bash
-# الطرفية 1 — API
+# 1 — API
 cd backend && source .venv/bin/activate
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ```bash
-# الطرفية 2 — الواجهة
+# 2 — الواجهة
 cd DataHackathon && npm run dev
 ```
 
-- **الواجهة:** http://localhost:5173  
-- **الـ API:** http://127.0.0.1:8000  
-- **وثائق تفاعلية (Swagger):** http://127.0.0.1:8000/docs  
+- الواجهة: http://localhost:5173  
+- الـ API: http://127.0.0.1:8000  
+- Swagger: http://127.0.0.1:8000/docs  
 
 ### فحص سريع
 
@@ -109,33 +157,40 @@ cd DataHackathon && npm run dev
 curl -s http://127.0.0.1:8000/api/health
 ```
 
-يُرجع `mode: live` عند ضبط مفتاح LLM، و`demo` عند غيابه (تحقق محلي تقريبي).
+`mode: live` عند وجود مفتاح LLM؛ `demo` عند غيابه (سلوك تقريبي).
 
 ---
 
-## كيف يجرّب المحكّم الحل
+<a id="judges"></a>
 
-### أ) الاستمارة الحية (Live Form)
+## دليل المحكّم
 
-1. افتح http://localhost:5173  
-2. انتقل إلى مسار **الاستمارة**: http://localhost:5173/survey  
-3. املأ الحقول؛ يُنفَّذ التحقق تلقائيًا بعد توقف الإدخال قصيرًا (debounce) وتظهر **درجة الثقة** والملاحظات.
+### أ) التجربة على النسخة المنشورة (مُفضّل إن كان الـ API يعمل)
 
-### ب) رفع Excel / CSV (اختبار جماعي)
+1. افتح [الرئيسية](https://iksasa15.github.io/DataInnovationHackathon/#/).
+2. **استمارة حية:** […/#/survey](https://iksasa15.github.io/DataInnovationHackathon/#/survey) — املأ الحقول وانتظر ظهور نتيجة التحقق بعد توقف الإدخال قليلاً.
+3. **Excel / CSV:** […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) — اسحب الملف ثم نفّذ التحليل/التحقق للدفعة.
+4. **اختبارات تقنية:** […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) — عنوان الـ API الحالي، Swagger، `openapi.json`، فحص شامل، اتصال Gemini (إن وُجد).
 
-1. افتح: http://localhost:5173/analysis (أو `/excel` — يعيد التوجيه إلى نفس الصفحة).  
-2. اسحب ملف **Excel** أو **CSV** (مثل ملف بيانات التدريب المزوّد من الجهة).  
-3. اضغط زر التحليل/التحقق لإرسال الصفوف إلى `/api/validate-batch-dynamic` وعرض النتائج لكل صف.
+إن فشلت الطلبات من المتصفّح، راجع **CORS**: على خادم الـ API يجب أن يتضمن `ALLOWED_ORIGINS` عنوان الواجهة، مثال:
 
-ملفات الاختبار المرجعية (عند وضعها في جذر المستودع محليًا):
+`https://iksasa15.github.io`
 
-- `LFS_Training_Dataset 3.xlsx` — بيانات تجريبية ببنية قريبة من الاستمارة الميدانية.  
-- `MetaData_LFS_Training_Dataset.xlsx` — وصف الحقول (يُستورد تلقائيًا عبر `backend/data/lfs_column_labels.json` بعد التحديث بالسكربت إن لزم).  
+(بدون شرطة مائلة أخيرة؛ بدون مسار المستودع — الأصل `https://iksasa15.github.io` كافٍ عادةً لطلبات المتصفح من الصفحة المنشورة.)
+
+### ب) التشغيل المحلي (بديل)
+
+1. اتبع [استنساخ وتشغيل محلي](#استنساخ-المستودع-والتشغيل-المحلي) وضَع `GEMINI_API_KEY` (أو بديل) في `backend/.env`.
+2. الاستمارة: http://localhost:5173/survey  
+3. التحليل الجماعي: http://localhost:5173/analysis  
+
+### ج) ملفات بيانات مرجعية (جذر المستودع محلياً)
+
+- `LFS_Training_Dataset 3.xlsx` — بنية قريبة من الاستمارة الميدانية.  
+- `MetaData_LFS_Training_Dataset.xlsx` — وصف الحقول (يُغذّي `backend/data/lfs_column_labels.json` عند التحديث بالسكربت إن لزم).  
 - `LFS_Business_Rules.xlsx` — مرجع قواعد العمل.
 
-### ج) سكربت تقييم اختياري (سطر أوامر)
-
-يتطلّب `pandas` و`openpyxl`: `pip install -r backend/requirements-scripts.txt` (مرة واحدة داخل الـ venv).
+### د) سكربت تقييم اختياري (سطر أوامر)
 
 ```bash
 cd backend && source .venv/bin/activate
@@ -143,124 +198,120 @@ pip install -r requirements-scripts.txt
 python scripts/eval_lfs_notes.py
 ```
 
-يقرأ `LFS_Training_Dataset 3.xlsx` من جذر المشروع ويشغّل مسار التحقق السريع للمقارنة التقريبية مع عمود الملاحظات.
+يقرأ `LFS_Training_Dataset 3.xlsx` من جذر المشروع للمقارنة التقريبية مع عمود الملاحظات.
 
 ---
+
+<a id="deploy"></a>
 
 ## النشر (Deploy) — خطوات عملية
 
-> وفق دليل المتسابق: رابط **واجهة عامة** + تعليمات تشغيل. الـ API والواجهة غالباً على **نطاقين**؛ يجب ضبط **`ALLOWED_ORIGINS`** و **`VITE_API_URL`**.
+> الواجهة والـ API على **نطاقين**: عيّن **`VITE_API_URL`** عند بناء الواجهة و **`ALLOWED_ORIGINS`** على الخادم ليشمل أصل الواجهة المنشورة.
 
-### أ) نشر الـ API (Backend) — مثال Render
+### أ) نشر الـ API (مثال Render)
 
-1. ادفع المشروع إلى GitHub وادخل [Render](https://render.com) → **New** → **Blueprint** أو **Web Service**.  
-2. إن استخدمت Blueprint: الملف [`render.yaml`](render.yaml) يوجّه `rootDir` إلى `backend`.  
-3. يدوياً (Web Service):  
-   - **Root Directory:** `backend`  
-   - **Build Command:** `pip install -r requirements.txt`  
-   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`  
-   - **Python:** **3.11.x** إلزامي تقريباً — في لوحة Render → **Environment** أضف **`PYTHON_VERSION`** = `3.11.9` إذا ظهر في اللوج `Installing Python 3.14` (تجاهل [`runtime.txt`](backend/runtime.txt) أحياناً إن لم يُضبط الجذر). تجنّب **3.14+**: `pydantic-core` يُبنى من المصدر وقد يفشل؛ و**pandas** كان يسبب **نفاد ذاكرة (OOM)** على الخطة المجانية — لذلك أُزيل من [`requirements.txt`](backend/requirements.txt) للإنتاج ووُضع في [`requirements-scripts.txt`](backend/requirements-scripts.txt).  
-4. في **Environment** أضف (حسب ما تستخدم):
-   - `ALLOWED_ORIGINS` = رابط الواجهة المنشورة فقط، مثال: `https://اسمك.netlify.app` (بدون شرطة أخيرة؛ يمكن عدة عناوين مفصولة بفاصلة إن لزم).  
-   - مفتاح Gemini: إما `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + جدول `app_settings`، أو `GEMINI_API_KEY` مباشرة.  
-   - (مُستحسن للإنتاج) `DISABLE_CLIENT_GEMINI_KEY=true`  
-5. بعد النشر انسخ **رابط الخدمة** (مثل `https://alharis-api.onrender.com`) — هذا هو **عنوان الـ API**.
+1. [Render](https://render.com) → **Web Service** أو **Blueprint** ([`render.yaml`](render.yaml) يوجّه إلى `backend`).
+2. **Root Directory:** `backend`  
+3. **Build:** `pip install -r requirements.txt`  
+4. **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT`  
+5. **Python 3.11.x** — في Environment عيّن `PYTHON_VERSION=3.11.9` إن بُني بإصدار أحدث وفشل `pydantic-core`. تجنّب 3.14+ على الخطط الصغيرة.
+6. **Environment:**
+   - `ALLOWED_ORIGINS` — مثال: `https://iksasa15.github.io` (أو نطاق Netlify/Vercel إن استخدمته).
+   - مفتاح: `GEMINI_API_KEY` و/أو Supabase (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) حسب [`supabase/schema.sql`](supabase/schema.sql).
+   - مُستحسن: `DISABLE_CLIENT_GEMINI_KEY=true`
 
-**Railway / Fly.io / Google Cloud Run:** نفس الفكرة: تشغيل `uvicorn main:app --host 0.0.0.0 --port $PORT` (أو المنفذ الذي توفره المنصة) ومجلد العمل = `backend`.
+**Railway / Fly.io / Cloud Run:** نفس فكرة Uvicorn ومجلد `backend`.
 
----
+### ب) الواجهة على GitHub Pages (هذا المستودع)
 
-### ب) نشر الواجهة (Frontend) — مثال Netlify أو Vercel
+- الملف [`.github/workflows/deploy-github-pages.yml`](.github/workflows/deploy-github-pages.yml) يبني مع `VITE_BASE_PATH=/DataInnovationHackathon/` و`VITE_GH_PAGES=true`.
+- **`DataHackathon/.env.production`** يحتوي `VITE_API_URL` لإنتاج الواجهة المنشورة.
+- يمكن تجاوز القيمة عبر **GitHub Secret** باسم `VITE_API_URL` في الـ workflow.
 
-1. أنشئ ملف بيئة **قبل البناء** (لا ترفعه لـ Git إن كان فيه أسرار؛ هنا عنوان API فقط):  
-   في مجلد `DataHackathon` أنشئ `.env.production`:
+### ج) الواجهة على Netlify / Vercel / Cloudflare (بديل)
 
-   ```env
-   VITE_API_URL=https://رابط-الـ-api-من-الخطوة-أ.onrender.com
-   ```
+في `DataHackathon` أنشئ `.env.production`:
 
-2. من جذر `DataHackathon`:
+```env
+VITE_API_URL=https://your-api.example.com
+```
 
-   ```bash
-   npm ci
-   npm run build
-   ```
+ثم `npm ci && npm run build` وانشر مجلد `dist` (Base directory = `DataHackathon`). راجع [`DataHackathon/netlify.toml`](DataHackathon/netlify.toml) لـ SPA.
 
-3. ارفع مجلد **`dist`** إلى Netlify / Cloudflare Pages / Vercel، أو اربط المستودع مع:
-   - **Base directory:** `DataHackathon`  
-   - **Build command:** `npm run build`  
-   - **Publish directory:** `dist`  
-4. في Netlify يمكن استخدام [`DataHackathon/netlify.toml`](DataHackathon/netlify.toml) لإعادة توجيه SPA.
+### د) تحقق بعد النشر
 
-5. بعد ظهور رابط الواجهة، ارجع إلى **متغيرات الـ API** على Render وأضف/حدّث `ALLOWED_ORIGINS` ليشمل **نفس رابط الواجهة** ثم أعد نشر الـ API (أو انتظر إعادة التشغيل).
+- `https://<عنوان-api>/api/health` يعيد JSON.  
+- جرّب الاستمارة والرفع من الواجهة؛ خطأ CORS يعني تعديل `ALLOWED_ORIGINS` (مع `https://`).
 
 ---
 
-### ج) تحقق سريع
-
-- من المتصفح: `https://رابط-ال-api/api/health` يجب أن يعيد JSON.  
-- افتح الواجهة وجرب الاستمارة أو رفع Excel؛ إن ظهر خطأ CORS راجع `ALLOWED_ORIGINS` (بما فيه `https://` وليس `http` إلا إن كان الموقع على HTTP).
-
-**عنوان النشر (يُحدَّث من الفريق):**  
-`https://YOUR-FRONTEND.example.com` ← الواجهة للمحكمين | `https://YOUR-API.example.com` ← الـ API
-
----
+<a id="api-keys"></a>
 
 ## مفاتيح API للمحكمين
 
-- **الأفضل للنشر:** ضبط `GEMINI_API_KEY` في **متغيرات بيئة الخادم** (Railway / Render / إلخ). عندها تُخفى الواجهة تلقائياً حقل «مفتاح Gemini» ويُظهر تنبيهاً أن المفتاح يُدار من الاستضافة — **المستخدم النهائي لا يحتاج إدخال مفتاح**. لتغيير المفتاح لاحقاً: عدّل المتغير في لوحة الاستضافة وأعد تشغيل الخادم (أو انتظر إعادة التشغيل التلقائي).  
-- **إنتاج أقوى:** فعّل `DISABLE_CLIENT_GEMINI_KEY=true` على الخادم لرفض أي محاولة إرسال مفتاح من المتصفح.  
-- **واجهة الإنتاج:** يمكن تعيين `VITE_HIDE_GEMINI_KEY_INPUT=true` عند `npm run build` (انظر `DataHackathon/.env.example`) لإخفاء الحقل حتى في بيئة التطوير المبنية.  
-- يُفضّل تزويد المحكمين **برصيد كافٍ** عبر القنوات الآمنة؛ **لا تُرفع المفاتيح إلى Git** (`backend/.env` في `.gitignore`).
+- **الأفضل:** `GEMINI_API_KEY` (أو Supabase `app_settings`) في **بيئة الخادم** فقط — المحكّم لا يحتاج لصق مفتاح في الواجهة عند التفعيل الصحيح.
+- **إنتاج أقوى:** `DISABLE_CLIENT_GEMINI_KEY=true` على الخادم.
+- **بناء الواجهة:** `VITE_HIDE_GEMINI_KEY_INPUT=true` لإخفاء حقل المفتاح (انظر `DataHackathon/.env.example`).
+- وفق الدليل: تزويد **رصيد كافٍ** للمفاتيح المدفوعة عبر قناة آمنة؛ **لا ترفع أسراراً إلى Git** (`backend/.env` في `.gitignore`).
 
-### تغيير مفتاح Gemini من Supabase (بدون إعادة نشر)
+### تحديث مفتاح Gemini عبر Supabase (دون إعادة نشر الواجهة)
 
-1. أنشئ مشروعاً في [Supabase](https://supabase.com) ونفّذ SQL من الملف [`supabase/schema.sql`](supabase/schema.sql) (SQL Editor).
-2. من **Table Editor** → `app_settings` → الصف `gemini_api_key` → ضع المفتاح في العمود `config_value` واحفظ.
-3. في بيئة الخادم (استضافة الـ API) أضف:
-   - `SUPABASE_URL` = رابط المشروع  
-   - `SUPABASE_SERVICE_ROLE_KEY` = **مفتاح service_role** (من Project Settings → API) — **لا** تضعه في الواجهة أو Git.
-4. أولوية المفتاح في الخادم: **جلسة الواجهة (إن وُجدت)** ← **Supabase** (إن وُجدت قيمة) ← **`GEMINI_API_KEY` في البيئة**.
-5. القراءة من Supabase تُخزَّن مؤقتاً (~60 ثانية). بعد تغيير المفتاح في الجدول يمكنك:
-   - الانتظار حتى انتهاء المدة، أو  
-   - استدعاء: `POST /api/admin/refresh-supabase-cache` مع الترويسة `X-Admin-Secret: <ADMIN_SECRET>` بعد ضبط `ADMIN_SECRET` في بيئة الخادم.
+1. نفّذ [`supabase/schema.sql`](supabase/schema.sql) في SQL Editor.  
+2. جدول `app_settings` → مفتاح `gemini_api_key` في `config_value`.  
+3. على الخادم: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (لا تُعرض في الواجهة).  
+4. كاش ~60 ثانية؛ أو `POST /api/admin/refresh-supabase-cache` مع `X-Admin-Secret` إن عُيّن `ADMIN_SECRET`.
 
-عند تفعيل Supabase يُخفى حقل المفتاح في الواجهة تلقائياً.
+التفاصيل موسّعة كانت في النسخة السابقة من README؛ المنطق لم يتغير.
 
 ---
+
+<a id="video"></a>
 
 ## الفيديو التوضيحي
 
-- **الرابط (يُضاف عند التسليم):**  
-  `https://YOUR-VIDEO-LINK.example.com`  
-- المدة المطلوبة في الدليل: **حتى 3 دقائق** (نشر، استمارة حية، رفع Excel).
+حسب الدليل: فيديو **حتى 3 دقائق** يتضمن:
+
+- خطوات النشر/التشغيل (أو الإشارة إلى هذا README + الرابط المنشور).  
+- عرضاً **حياً** لاكتشاف التناقضات من الاستمارة.  
+- إن أمكن: لقطة سريعة لرفع Excel والنتائج.
+
+**رابط الفيديو (يُحدَّث من الفريق عند التسليم):**
+
+<!-- أضف الرابط الفعلي هنا -->
+`[لم يُرفَق بعد — استبدل هذا السطر برابط YouTube / Drive / غيره]`
 
 ---
+
+<a id="structure"></a>
 
 ## هيكل المستودع (مختصر)
 
 ```
 DataInnovationHackathon/
+├── .github/workflows/       # نشر الواجهة إلى docs/ (GitHub Pages)
 ├── supabase/
-│   └── schema.sql           # جدول app_settings لمفتاح Gemini
-├── backend/                 # FastAPI — التحقق، Gemini، قواعد hybrid، ميتاداتا
+│   └── schema.sql           # app_settings لمفتاح Gemini
+├── backend/                 # FastAPI — تحقق، Gemini، hybrid، ميتاداتا LFS
 │   ├── main.py
-│   ├── supabase_settings.py # قراءة المفتاح من Supabase
+│   ├── supabase_settings.py
 │   ├── validator.py
 │   ├── prompts.py
 │   ├── lfs_metadata.py
 │   ├── lfs_business_rules.py
 │   ├── data/lfs_column_labels.json
 │   └── scripts/
-├── DataHackathon/           # Vue 3 — استمارة + رفع Excel
-├── run.sh                   # تشغيل API + واجهة معًا
+├── DataHackathon/           # Vue 3 — رئيسية، استمارة، تحليل، اختبارات
+├── run.sh
 ├── run-backend.sh
+├── render.yaml
 └── README.md
 ```
 
 ---
 
-## جهة التواصل (استفسارات الهكاثون)
+<a id="contact"></a>
+
+## جهة التواصل (استفسارات الهاكاثون)
 
 حسب الدليل الرسمي: **I.Hackathon@stats.gov.sa**
 
