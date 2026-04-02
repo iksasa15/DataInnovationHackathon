@@ -1,7 +1,8 @@
 # يبني DataHackathon ويدفع dist إلى مجلد docs/ على main.
 # في GitHub: Settings → Pages → Source: Deploy from branch → Branch: main → Folder: /docs
 # (ليس الجذر / ولا README — ولا يلزم «GitHub Actions» كمصدر للصفحات.)
-# أضف Secret: VITE_API_URL = رابط الـ API العام
+# عنوان الـ API الافتراضي: DataHackathon/.env.production (VITE_API_URL).
+# اختياري: Secret باسم VITE_API_URL يتجاوزه إن وُجد (انظر خطوة البناء).
 name: Deploy frontend to GitHub Pages (docs)
 
 on:
@@ -37,9 +38,10 @@ jobs:
         env:
           VITE_BASE_PATH: /DataInnovationHackathon/
           VITE_GH_PAGES: 'true'
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           npm ci
+          # إن وُجد Secret يتجاوز .env.production (لا تمرّر متغيراً فارغاً فيلغي الملف)
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then export VITE_API_URL="${{ secrets.VITE_API_URL }}"; fi
           npm run build-only
 
       - name: Disable Jekyll

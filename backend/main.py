@@ -2,7 +2,9 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.responses import Response
+
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Literal
 
@@ -72,8 +74,18 @@ app.add_middleware(
 
 @app.get("/", include_in_schema=False)
 async def root():
-    """يوجّه جذر الخدمة إلى Swagger — يفيد فحوصات المتصفح وRender."""
-    return RedirectResponse(url="/docs")
+    """جذر الخدمة — روابط مباشرة (Render يفحص أحياناً HEAD /)."""
+    return {
+        "service": "الحارس الدلالي API",
+        "health": "/api/health",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+    }
+
+
+@app.head("/", include_in_schema=False)
+async def root_head():
+    return Response(status_code=200)
 
 
 class FormData(BaseModel):
@@ -91,6 +103,14 @@ class FormData(BaseModel):
 
 class GeminiApiKeyPayload(BaseModel):
     api_key: str = ""
+
+
+class GeminiStatusResponse(BaseModel):
+    """رد التحقق من Gemini — يظهر في OpenAPI بدل schema نوع string."""
+
+    ok: bool
+    message: str
+    cached: Optional[bool] = None
 
 
 @app.get("/api/health")
@@ -122,7 +142,7 @@ async def health():
     }
 
 
-@app.get("/api/gemini-status")
+@app.get("/api/gemini-status", response_model=GeminiStatusResponse)
 async def gemini_status():
     """التحقق من اتصال Gemini بعمل طلب فعلي."""
     from validator import check_gemini_connection
