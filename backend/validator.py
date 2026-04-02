@@ -350,6 +350,18 @@ def _compute_stats(results: list[dict]) -> dict:
     }
 
 
+def _baseline_row_result(row_index: int) -> dict:
+    """نتيجة افتراضية قبل دمج قواعد الأعمال فقط (بدون نموذج لغوي)."""
+    return {
+        "row_index": row_index,
+        "confidence_score": 100,
+        "status": "valid",
+        "errors": [],
+        "suggestions": [],
+        "summary": "تحليل بقواعد الأعمال فقط — لم يُستدعَ نموذج لغوي.",
+    }
+
+
 def _is_missing_value(value: Any) -> bool:
     """هل القيمة تعتبر مفقودة (فارغة أو غير صالحة للتحليل)."""
     if value is None:
@@ -570,6 +582,7 @@ async def validate_rows_dynamic(
     column_subset: bool = True,
     max_columns: Optional[int] = None,
     apply_hybrid_rules: bool = True,
+    use_llm: bool = True,
 ) -> dict:
     if not columns or not records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
@@ -588,6 +601,25 @@ async def validate_rows_dynamic(
 
     if not cleaned_records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
+
+    # قواعد الأعمال فقط — بدون Gemini ولا التحقق المحلي الموسّع
+    if not use_llm:
+        rules_results: list[dict] = []
+        for rec in cleaned_records:
+            idx = int(rec["row_index"])
+            base = _baseline_row_result(idx)
+            if apply_hybrid_rules:
+                merged = merge_hybrid_into_result(base, apply_lfs_hybrid_rules(rec))
+                merged = apply_code_desc_false_positive_filter(merged, rec)
+            else:
+                merged = base
+                merged["summary"] = "لم يُفعّل تحليل ولا قواعد — الصف سليم افتراضياً."
+            rules_results.append(merged)
+        return {
+            "results": rules_results,
+            "stats": _compute_stats(rules_results),
+            "provider": "rules",
+        }
 
     default_labs = load_default_labels() if embed_metadata else {}
 

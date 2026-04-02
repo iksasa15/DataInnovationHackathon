@@ -21,6 +21,10 @@ export interface ValidationError {
   field: string
   message: string
   severity: 'low' | 'medium' | 'high'
+  /** رقم القاعدة من LFS_Business_Rules.xlsx عند التحقق البرمجي */
+  rule_id?: number
+  message_en?: string
+  rule_type?: string
 }
 
 export interface ValidationResult {
@@ -245,7 +249,7 @@ export interface BatchStats {
 export interface BatchResult {
   results: (ValidationResult & { row_index: number })[]
   stats: BatchStats
-  provider?: 'gemini' | 'local'
+  provider?: 'gemini' | 'local' | 'rules'
   gemini_unavailable?: boolean
 }
 
@@ -272,6 +276,8 @@ export interface DynamicBatchPayload {
   max_columns?: number
   /** دمج قواعد الأعمال الصريحة مع مخرجات النموذج */
   apply_hybrid_rules?: boolean
+  /** إذا false: لا يُستدعَ النموذج اللغوي — قواعد الأعمال فقط */
+  use_llm?: boolean
 }
 
 export async function validateBatchDynamic(payload: DynamicBatchPayload): Promise<BatchResult> {

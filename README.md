@@ -59,7 +59,7 @@
 1. **واجهة جمع**: الواجهة (Vue 3 + Vite) ترسل بيانات الاستمارة أو صفوف Excel إلى **REST API** (FastAPI).
 2. **تحليل ذكي**: الخادم يبني **برومبتًا** يتضمن تعليمات عربية، **Few-Shot** (أمثلة مبسّطة + أمثلة بأسماء حقول LFS عند التحقق الديناميكي)، وقاموس **معاني الأعمدة** (ميتاداتا) عند توفرها.
 3. **مزوّد LLM**: يُفضّل **Google Gemini** لمسار Excel الديناميكي (مخرجات JSON). يمكن استخدام **Groq** أو **OpenAI** لمسار الاستمارة عند ضبط المتغيرات في `backend/.env`.
-4. **طبقة مكمّلة (قواعد صريحة)**: قواعد مستوحاة من **LFS Business Rules** تُطبَّق كـ **hybrid** وتُدمج مع مخرجات النموذج (عمر/تعليم، تعارض قطاع/نشاط، إلخ).
+4. **طبقة مكمّلة (قواعد صريحة)**: يُحمَّل جدول **`LFS_Business_Rules.xlsx`** عبر `openpyxl`؛ القواعد المُنفَّذة برمجياً (مثل 2001، 2011–2017) تُرجِع `rule_id` و`message_en` من الملف. قائمة القواعد: `GET /api/lfs-business-rules` (اختياري: `LFS_BUSINESS_RULES_XLSX` لمسار الملف).
 5. **تقليص الأعمدة**: للجداول العريضة يُختار حد أقصى من الأعمدة ذات الأولوية + الأعمدة ذات القيم في الصف (`LFS_MAX_COLUMNS`).
 6. **استخدام بيانات التدريب**: **محاكاة واختبار** عبر الـ API والواجهة؛ لا يُفترض **تدريب نموذج** على بيانات الهيئة داخل هذا المستودع (متوافق مع منهجية الدليل).
 
@@ -78,7 +78,7 @@
 
 ### مكتبات رئيسية
 
-- **الخادم:** FastAPI، Uvicorn، `google-generativeai`، `openai`، Pydantic، httpx؛ pandas/openpyxl في `requirements-scripts.txt` (سكربتات تقييم/ميتاداتا — ليس إلزامياً على Render لتفادي OOM).
+- **الخادم:** FastAPI، Uvicorn، `google-generativeai`، `openai`، Pydantic، httpx، **openpyxl** (قراءة `LFS_Business_Rules.xlsx`)؛ pandas في `requirements-scripts.txt` (سكربتات تقييم/ميتاداتا — اختياري على Render).
 - **الواجهة:** Vue 3، Vue Router، Pinia، Vite، SheetJS (`xlsx`)، iconv-lite، **Chart.js** + **vue-chartjs** (رسوم مقارنة في الصفحة الرئيسية).
 
 ---
@@ -189,7 +189,7 @@ curl -s http://127.0.0.1:8000/api/health
 
 - `LFS_Training_Dataset 3.xlsx` — بنية قريبة من الاستمارة الميدانية.  
 - `MetaData_LFS_Training_Dataset.xlsx` — وصف الحقول (يُغذّي `backend/data/lfs_column_labels.json` عند التحديث بالسكربت إن لزم).  
-- `LFS_Business_Rules.xlsx` — مرجع قواعد العمل.
+- `LFS_Business_Rules.xlsx` — جدول قواعد العمل (يُقرأ في الخادم؛ نفس الملف يغذّي رسائل القواعد في الـ API).
 
 ### د) سكربت تقييم اختياري (سطر أوامر)
 

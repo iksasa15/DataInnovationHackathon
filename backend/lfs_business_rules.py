@@ -8,6 +8,32 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from lfs_business_rules_loader import get_rule_record
+
+
+def _hybrid_rule_error(
+    field: str,
+    severity: str,
+    message_ar: str,
+    rule_id: int | None = None,
+) -> dict[str, Any]:
+    """
+    خطأ بتنسيق الـ API؛ يضيف rule_id و message_en من LFS_Business_Rules.xlsx عند التوفر.
+    """
+    err: dict[str, Any] = {"field": field, "severity": severity, "message": message_ar}
+    if rule_id is None:
+        return err
+    err["rule_id"] = rule_id
+    rec = get_rule_record(rule_id)
+    if rec:
+        en = (rec.get("message_en") or "").strip()
+        if en:
+            err["message_en"] = en
+        et = (rec.get("error_type") or "").strip()
+        if et:
+            err["rule_type"] = et
+    return err
+
 
 def _age_value(row: dict[str, Any]) -> float | None:
     v = row.get("age")
@@ -105,51 +131,57 @@ def apply_lfs_hybrid_rules(row: dict[str, Any]) -> list[dict[str, Any]]:
     if age is not None:
         if age < 15 and rel and ("رئيس" in rel or "head" in rel.lower()):
             errors.append(
-                {
-                    "field": "age",
-                    "message": "عمر أقل من 15 مع صلة قرابة تشير إلى رئيس أسرة — خطأ منطقي (قاعدة 2001)",
-                    "severity": "high",
-                }
+                _hybrid_rule_error(
+                    "age",
+                    "high",
+                    "عمر أقل من 15 مع صلة قرابة تشير إلى رئيس أسرة — خطأ منطقي (قاعدة 2001)",
+                    2001,
+                )
             )
         if age < 17 and _has_secondary_plus(edu):
             errors.append(
-                {
-                    "field": "q_301_desc",
-                    "message": "عمر أقل من 17 مع مؤهل ثانوي فأعلى — يتعارض مع قواعد التعليم المعتادة (قاعدة 2011)",
-                    "severity": "high",
-                }
+                _hybrid_rule_error(
+                    "q_301_desc",
+                    "high",
+                    "عمر أقل من 17 مع مؤهل ثانوي فأعلى — يتعارض مع قواعد التعليم المعتادة (قاعدة 2011)",
+                    2011,
+                )
             )
         if age < 19 and _has_diploma_plus(edu):
             errors.append(
-                {
-                    "field": "q_301_desc",
-                    "message": "عمر أقل من 19 مع دبلوم فأعلى — يستوجب التحقق (قاعدة 2012)",
-                    "severity": "high",
-                }
+                _hybrid_rule_error(
+                    "q_301_desc",
+                    "high",
+                    "عمر أقل من 19 مع دبلوم فأعلى — يستوجب التحقق (قاعدة 2012)",
+                    2012,
+                )
             )
         if age < 21 and _has_bachelor_plus(edu):
             errors.append(
-                {
-                    "field": "q_301_desc",
-                    "message": "عمر أقل من 21 مع بكالوريوس فأعلى — تعارض محتمل (قاعدة 2013)",
-                    "severity": "medium",
-                }
+                _hybrid_rule_error(
+                    "q_301_desc",
+                    "medium",
+                    "عمر أقل من 21 مع بكالوريوس فأعلى — تعارض محتمل (قاعدة 2013)",
+                    2013,
+                )
             )
         if age < 23 and _has_master_plus(edu):
             errors.append(
-                {
-                    "field": "q_301_desc",
-                    "message": "عمر أقل من 23 مع ماجستير فأعلى — تعارض محتمل (قاعدة 2015)",
-                    "severity": "medium",
-                }
+                _hybrid_rule_error(
+                    "q_301_desc",
+                    "medium",
+                    "عمر أقل من 23 مع ماجستير فأعلى — تعارض محتمل (قاعدة 2015)",
+                    2015,
+                )
             )
         if age < 25 and _has_phd_plus(edu):
             errors.append(
-                {
-                    "field": "q_301_desc",
-                    "message": "عمر أقل من 25 مع دكتوراه — تعارض محتمل (قاعدة 2016)",
-                    "severity": "medium",
-                }
+                _hybrid_rule_error(
+                    "q_301_desc",
+                    "medium",
+                    "عمر أقل من 25 مع دكتوراه — تعارض محتمل (قاعدة 2016)",
+                    2016,
+                )
             )
 
     # تعارض تخصص/مستوى: ثانوي فقط مع تخصص جامعي (قاعدة 2017 مبسطة)
@@ -159,24 +191,26 @@ def apply_lfs_hybrid_rules(row: dict[str, Any]) -> list[dict[str, Any]]:
         r"009|جامع|university|بكالوريوس", spec, re.I
     ):
         errors.append(
-            {
-                "field": "q_302_e_txt",
-                "message": "مستوى تعليم منخفض في q_301 مع تخصص يوحي بمستوى جامعي — تحقق من التوافق (قاعدة 2017)",
-                "severity": "high",
-            }
+            _hybrid_rule_error(
+                "q_302_e_txt",
+                "high",
+                "مستوى تعليم منخفض في q_301 مع تخصص يوحي بمستوى جامعي — تحقق من التوافق (قاعدة 2017)",
+                2017,
+            )
         )
 
-    # قطاع عمالة منزلية مقابل نشاط صناعي كبير / كهرباء
+    # قطاع عمالة منزلية مقابل نشاط صناعي كبير / كهرباء (قاعدة مكمّلة لمجموعة التدريب — لا يوجد رقم مطابق في كل الحالات)
     if sector and ("عمالة منزلية" in sector or "domestic" in sector.lower()):
         empl_u = employer.upper()
         act_l = activity.lower()
         if "كهرباء" in employer or "كهرباء" in activity or "electric" in empl_u or "power" in act_l:
             errors.append(
-                {
-                    "field": "q_534_desc",
-                    "message": "قطاع «عمالة منزلية» لا يتسق عادة مع جهة عمل أو نشاط كهرباء/توليد",
-                    "severity": "high",
-                }
+                _hybrid_rule_error(
+                    "q_534_desc",
+                    "high",
+                    "قطاع «عمالة منزلية» لا يتسق عادة مع جهة عمل أو نشاط كهرباء/توليد",
+                    None,
+                )
             )
 
     return errors

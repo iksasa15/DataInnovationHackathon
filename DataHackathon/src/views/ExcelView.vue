@@ -26,8 +26,14 @@ const fileName = ref('')
 const columns = ref<string[]>([])
 const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
+/** رسالة عند فشل الطلب للخادم (بعد الرفع التلقائي أو اليدوي) */
+const analysisError = ref<string | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
 const detailsModalRow = ref<number | null>(null)
+
+/** قواعد فقط | Gemini فقط | الاثنان معاً */
+type AnalysisEngine = 'rules' | 'gemini' | 'both'
+const analysisEngine = ref<AnalysisEngine>('both')
 
 /** معرف العمود (tag) → نص السؤال من MetaData_LFS_Training_Dataset */
 const lfsColumnQuestionByName = ref<Record<string, string>>({})
@@ -140,6 +146,76 @@ const filteredRows = computed(() => {
 })
 
 const stats = computed(() => batchResult.value?.stats ?? null)
+
+const analyzeButtonLabel = computed(() => {
+  if (isProcessing.value) return 'جارٍ التحليل…'
+  if (batchResult.value) return '🔄 إعادة التحليل'
+  if (analysisEngine.value === 'rules') return '⚙️ تحليل بالقواعد'
+  if (analysisEngine.value === 'gemini') return '🤖 تحليل بـ Gemini'
+  return '🔍 تحليل (Gemini + قواعد)'
+})
+
+/** ملخص تنبيهات بأسباب (مثل تجربة التحليل بـ Gemini) — يظهر بعد كل تحليل ناجح */
+const analysisNotice = computed(() => {
+  if (!batchResult.value || isProcessing.value) return null
+  const br = batchResult.value
+  const st = br.stats
+  if (!st) return null
+
+  type Item = {
+    field: string
+    fieldLabel: string
+    message: string
+    severity?: string
+    rule_id?: number
+    message_en?: string
+  }
+  const items: Item[] = []
+  const seen = new Set<string>()
+  for (const r of br.results) {
+    const errs = r.errors || []
+    for (const e of errs) {
+      const msg = typeof e.message === 'string' ? e.message : String(e.message ?? '')
+      const key = `${e.field}|${msg}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const ex = e as ValidationError & { rule_id?: number; message_en?: string }
+      items.push({
+        field: e.field,
+        fieldLabel: columnHeaderLabel(e.field),
+        message: msg,
+        severity: e.severity,
+        rule_id: ex.rule_id,
+        message_en: ex.message_en,
+      })
+      if (items.length >= 18) break
+    }
+    if (items.length >= 18) break
+  }
+
+  const suggestions: string[] = []
+  const sugSeen = new Set<string>()
+  for (const r of br.results) {
+    for (const s of r.suggestions || []) {
+      const t = typeof s === 'string' ? s : String(s)
+      if (!t.trim() || sugSeen.has(t)) continue
+      sugSeen.add(t)
+      suggestions.push(t)
+      if (suggestions.length >= 6) break
+    }
+    if (suggestions.length >= 6) break
+  }
+
+  const allClear = st.errors === 0 && st.warnings === 0
+  return {
+    items,
+    suggestions,
+    totalErrors: st.errors,
+    totalWarnings: st.warnings,
+    allClear,
+    hasRowLevelIssues: items.length > 0,
+  }
+})
 
 /** خريطة تفاصيل كل صف (ملخص مشاكل + اقتراحات) لتجنب إعادة الحساب في القالب */
 const rowDetailsMap = computed(() => {
@@ -259,6 +335,7 @@ function processFile(file: File) {
     }))
 
     batchResult.value = null
+    analysisError.value = null
     filter.value = 'all'
   }
 
@@ -268,11 +345,18 @@ function processFile(file: File) {
 async function analyzeAll() {
   if (!rows.value.length || !columns.value.length) return
   isProcessing.value = true
+  analysisError.value = null
   try {
+    const engine = analysisEngine.value
+    const useLlm = engine !== 'rules'
+    const applyHybrid = engine !== 'gemini'
+
     const payload = {
       columns: columns.value,
       records: rows.value.map((r) => ({ row_index: r.row_index, ...(r.editableData ?? r.originalData) })),
       mode: 'smart' as const,
+      use_llm: useLlm,
+      apply_hybrid_rules: applyHybrid,
     }
 
     batchResult.value = await validateBatchDynamic(payload)
@@ -283,6 +367,10 @@ async function analyzeAll() {
       editableData: r.editableData ?? { ...r.originalData },
       validation: resultMap.get(r.row_index) ?? null,
     }))
+  } catch (e) {
+    batchResult.value = null
+    analysisError.value =
+      e instanceof Error ? e.message : 'تعذّر الاتصال بالخادم أو إكمال التحليل. تحقق من تشغيل الـ API.'
   } finally {
     isProcessing.value = false
   }
@@ -293,6 +381,7 @@ function resetFile() {
   columns.value = []
   rows.value = []
   batchResult.value = null
+  analysisError.value = null
   filter.value = 'all'
 }
 
@@ -445,7 +534,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
     <div class="page-head">
       <h1 class="page-title">تحليل الملف</h1>
       <p class="page-desc">
-        ارفع ملف Excel أو CSV (استبيان، جداول بيانات) وسيكتشف <strong>الحارس الدلالي</strong> الأخطاء المنطقية ويلوّن الخلايا المشبوهة. الملاحظات والتقارير تظهر بالعربية حتى لو كانت البيانات بالإنجليزية.
+        ارفع ملف Excel أو CSV، ثم اختر <strong>نوع التحليل</strong> (قواعد الأعمال، Gemini، أو الاثنين معاً) واضغط <strong>تحليل</strong>. يُلوّن الخلايا ويُظهر التنبيهات. الملاحظات بالعربية حتى لو كانت البيانات بالإنجليزية.
       </p>
     </div>
 
@@ -469,26 +558,115 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
     <template v-else>
       <!-- Toolbar -->
       <div class="toolbar">
-        <div class="file-info">
-          <span class="file-icon">📄</span>
-          <span class="file-name">{{ fileName }}</span>
-          <span class="file-rows">{{ rows.length }} سجل</span>
+        <div class="toolbar-main">
+          <div class="file-info">
+            <span class="file-icon">📄</span>
+            <span class="file-name">{{ fileName }}</span>
+            <span class="file-rows">{{ rows.length }} سجل</span>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-ghost btn-sm" @click="resetFile">تغيير الملف</button>
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="isProcessing"
+              @click="analyzeAll">
+              <span v-if="isProcessing" class="btn-spinner"></span>
+              {{ analyzeButtonLabel }}
+            </button>
+            <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
+              📥 تحميل الملف
+            </button>
+            <button class="btn btn-export btn-sm" @click="exportFileAndReport" title="تصدير الملف المعدّل مع التقرير">
+              💾 حفظ وتصدير + التقرير
+            </button>
+          </div>
         </div>
-        <div class="toolbar-actions">
-          <button class="btn btn-ghost btn-sm" @click="resetFile">تغيير الملف</button>
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="isProcessing"
-            @click="analyzeAll">
-            <span v-if="isProcessing" class="btn-spinner"></span>
-            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بـ Gemini' }}
-          </button>
-          <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
-            📥 تحميل الملف
-          </button>
-          <button class="btn btn-export btn-sm" @click="exportFileAndReport" title="تصدير الملف المعدّل مع التقرير">
-            💾 حفظ وتصدير + التقرير
-          </button>
+        <div class="toolbar-engine" role="group" aria-label="نوع التحليل">
+          <span class="engine-label">نوع التحليل</span>
+          <div class="engine-btns">
+            <button
+              type="button"
+              class="engine-btn"
+              :class="{ 'engine-btn-active': analysisEngine === 'rules' }"
+              :disabled="isProcessing"
+              @click="analysisEngine = 'rules'"
+            >
+              قواعد الأعمال
+            </button>
+            <button
+              type="button"
+              class="engine-btn"
+              :class="{ 'engine-btn-active': analysisEngine === 'gemini' }"
+              :disabled="isProcessing"
+              @click="analysisEngine = 'gemini'"
+            >
+              Gemini
+            </button>
+            <button
+              type="button"
+              class="engine-btn"
+              :class="{ 'engine-btn-active': analysisEngine === 'both' }"
+              :disabled="isProcessing"
+              @click="analysisEngine = 'both'"
+            >
+              الكل
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="analysisError" class="analysis-error-banner" role="alert">
+        {{ analysisError }}
+      </div>
+
+      <!-- تنبيه بأسباب (نفس منطق التحليل بـ Gemini + القواعد) -->
+      <div
+        v-if="analysisNotice && !analysisNotice.allClear"
+        class="analysis-notice-card"
+        role="status"
+      >
+        <div class="analysis-notice-head">
+          <span class="analysis-notice-icon">⚠️</span>
+          <div>
+            <h3 class="analysis-notice-title">نتيجة التحليل — تنبيهات</h3>
+            <p class="analysis-notice-meta">
+              {{ analysisNotice.totalErrors }} صف بحالة خطأ · {{ analysisNotice.totalWarnings }} تحذير
+              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">Gemini</span>
+              <span v-else-if="batchResult?.provider === 'rules'" class="tag-rules">قواعد فقط</span>
+              <span v-else-if="batchResult?.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
+            </p>
+          </div>
+        </div>
+        <ul v-if="analysisNotice.items.length" class="analysis-notice-list">
+          <li v-for="(it, idx) in analysisNotice.items" :key="idx" class="analysis-notice-li">
+            <span class="notice-field">{{ it.fieldLabel }}</span>
+            <span class="notice-msg">{{ it.message }}</span>
+            <span v-if="it.rule_id != null" class="notice-rule">قاعدة {{ it.rule_id }}</span>
+            <span v-if="it.message_en" class="notice-en" dir="ltr">{{ it.message_en }}</span>
+          </li>
+        </ul>
+        <p
+          v-else-if="analysisNotice.totalErrors + analysisNotice.totalWarnings > 0"
+          class="analysis-notice-fallback"
+        >
+          وُجدت مشاكل في الصفوف — راجع ألوان الخلايا أو عمود «تفاصيل» والتبويبات أعلاه.
+        </p>
+        <ul v-if="analysisNotice.suggestions.length" class="analysis-notice-suggestions">
+          <li
+            v-for="(sg, sgi) in analysisNotice.suggestions"
+            :key="'sg' + sgi"
+            class="suggestion-li"
+          >
+            💡 {{ sg }}
+          </li>
+        </ul>
+      </div>
+
+      <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
+        <span class="ok-icon">✓</span>
+        <div>
+          <strong>لم يُرصد خطأ أو تحذير في الدفعة</strong>
+          <p class="ok-sub">يمكنك مراجعة الجدول أو تصدير التقرير إن رغبت.</p>
         </div>
       </div>
 
@@ -518,8 +696,19 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         </div>
       </div>
 
-      <div v-if="batchResult?.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
+      <div
+        v-if="batchResult?.provider"
+        class="provider-notice"
+        :class="{
+          'provider-ok': batchResult.provider === 'gemini',
+          'provider-rules': batchResult.provider === 'rules',
+          'provider-local': batchResult.provider === 'local',
+        }"
+      >
         <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
+        <span v-else-if="batchResult.provider === 'rules'">
+          ✓ تم التحليل بـ <strong>قواعد الأعمال</strong> فقط (LFS Business Rules) — دون استدعاء النموذج اللغوي.
+        </span>
         <span v-else-if="batchResult.provider === 'local'">
           التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
         </span>
@@ -727,15 +916,187 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 /* Toolbar */
 .toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.65rem;
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
   background: var(--color-background-soft);
   border: 1px solid var(--color-border);
   border-radius: 0.6rem;
+}
+.toolbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.toolbar-engine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+.engine-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  opacity: 0.9;
+}
+.engine-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.engine-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.engine-btn:hover:not(:disabled) {
+  background: var(--color-background-mute);
+}
+.engine-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.engine-btn-active {
+  background: rgba(14, 116, 144, 0.14);
+  border-color: #0e7490;
+  color: #0e7490;
+  font-weight: 600;
+}
+.analysis-error-banner {
+  margin: -0.25rem 0 1rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  color: #991b1b;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 0.5rem;
+}
+
+.analysis-notice-card {
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.06));
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 0.65rem;
+}
+.analysis-notice-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+.analysis-notice-icon { font-size: 1.35rem; line-height: 1; }
+.analysis-notice-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+.analysis-notice-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.88;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.tag-gemini, .tag-local, .tag-rules {
+  font-size: 0.72rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.tag-gemini { background: rgba(16, 185, 129, 0.2); color: #047857; }
+.tag-rules { background: rgba(59, 130, 246, 0.18); color: #1d4ed8; }
+.tag-local { background: rgba(107, 114, 128, 0.2); color: #374151; }
+
+.analysis-notice-list {
+  margin: 0;
+  padding-right: 1.1rem;
+  list-style: disc;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+.analysis-notice-li {
+  margin-bottom: 0.5rem;
+}
+.notice-field {
+  display: inline-block;
+  font-weight: 600;
+  color: var(--color-heading);
+  margin-left: 0.35rem;
+}
+.notice-msg { display: inline; }
+.notice-rule {
+  display: inline-block;
+  margin-right: 0.35rem;
+  font-size: 0.72rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(14, 116, 144, 0.15);
+  color: #0e7490;
+  vertical-align: middle;
+}
+.notice-en {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  opacity: 0.85;
+  color: var(--color-text);
+}
+.analysis-notice-fallback {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  opacity: 0.9;
+}
+.analysis-notice-suggestions {
+  margin: 0.65rem 0 0;
+  padding-right: 1rem;
+  list-style: none;
+  font-size: 0.82rem;
+  color: #0e7490;
+}
+.suggestion-li { margin-bottom: 0.35rem; }
+
+.analysis-notice-ok {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 0.65rem;
+  font-size: 0.9rem;
+  color: var(--color-heading);
+}
+.analysis-notice-ok .ok-icon {
+  font-size: 1.25rem;
+  color: #059669;
+  line-height: 1.2;
+}
+.ok-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-text);
+  opacity: 0.85;
 }
 .file-info { display: flex; align-items: center; gap: 0.5rem; }
 .file-icon { font-size: 1.1rem; }
@@ -785,6 +1146,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .provider-notice code { font-family: ui-monospace, monospace; padding: 0.1rem 0.35rem; border-radius: 0.25rem; }
 .provider-ok { background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; color: #047857; }
+.provider-rules { background: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; color: #1d4ed8; }
 .provider-local { background: rgba(245, 158, 11, 0.12); border: 1px solid #f59e0b; color: #b45309; }
 
 /* Filter tabs */

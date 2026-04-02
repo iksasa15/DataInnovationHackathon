@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Literal
 
 load_dotenv()
@@ -158,6 +158,21 @@ def supabase_status_check():
     return test_supabase_connection()
 
 
+@app.get("/api/lfs-business-rules")
+def lfs_business_rules_catalog():
+    """
+    جدول قواعد الأعمال من `LFS_Business_Rules.xlsx` (جذر المستودع).
+    للمراجعة والاختبار مع بيانات مثل `LFS_Training_Dataset 3.xlsx`.
+    يمكن ضبط المسار بـ LFS_BUSINESS_RULES_XLSX.
+    """
+    from lfs_business_rules_loader import business_rules_source_info, list_rules_for_api
+
+    return {
+        "source": business_rules_source_info(),
+        "rules": list_rules_for_api(),
+    }
+
+
 @app.post("/api/gemini-api-key")
 async def set_gemini_key(payload: GeminiApiKeyPayload):
     """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي) — يُعطّل في الإنتاج بـ DISABLE_CLIENT_GEMINI_KEY."""
@@ -242,6 +257,10 @@ class DynamicBatchPayload(BaseModel):
     column_subset: bool = True
     max_columns: Optional[int] = None
     apply_hybrid_rules: bool = True
+    use_llm: bool = Field(
+        True,
+        description="إذا False: لا يُستدعَ النموذج اللغوي — تُطبَّق قواعد الأعمال فقط (مع apply_hybrid_rules).",
+    )
 
 
 @app.post("/api/validate-batch-dynamic")
@@ -257,6 +276,7 @@ async def validate_batch_dynamic(payload: DynamicBatchPayload):
         column_subset=payload.column_subset,
         max_columns=payload.max_columns,
         apply_hybrid_rules=payload.apply_hybrid_rules,
+        use_llm=payload.use_llm,
     )
 
 
