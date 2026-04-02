@@ -1,23 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { checkSupabaseStatus } from '../services/api'
-import type { SupabaseStatusResult } from '../services/api'
+import { getApiBaseUrl, runFullDiagnostics } from '../services/api'
+import type { DiagnosticResult } from '../services/api'
 
-const supabaseLoading = ref(false)
-const supabaseResult = ref<SupabaseStatusResult | null>(null)
-const supabaseError = ref<string | null>(null)
+const apiBase = computed(() => getApiBaseUrl())
+const apiDocsUrl = computed(() => `${getApiBaseUrl()}/docs`)
+const apiOpenApiUrl = computed(() => `${getApiBaseUrl()}/openapi.json`)
 
-async function testSupabase() {
-  supabaseLoading.value = true
-  supabaseError.value = null
-  supabaseResult.value = null
+const diagLoading = ref(false)
+const diagnosticResults = ref<DiagnosticResult[] | null>(null)
+
+const allDiagnosticsOk = computed(() => {
+  const r = diagnosticResults.value
+  if (!r?.length) return null
+  return r.every((x) => x.ok)
+})
+
+async function runDiagnostics() {
+  diagLoading.value = true
+  diagnosticResults.value = null
   try {
-    supabaseResult.value = await checkSupabaseStatus()
-  } catch {
-    supabaseError.value = 'تعذّر الاتصال بالخادم. تأكد أن الـ backend يعمل على المنفذ 8000.'
+    diagnosticResults.value = await runFullDiagnostics()
+  } catch (e) {
+    diagnosticResults.value = [
+      {
+        id: 'fatal',
+        label: 'خطأ غير متوقع',
+        ok: false,
+        message: e instanceof Error ? e.message : 'فشل التشخيص',
+      },
+    ]
   } finally {
-    supabaseLoading.value = false
+    diagLoading.value = false
   }
 }
 </script>
@@ -41,27 +56,53 @@ async function testSupabase() {
           <a href="#features" class="btn btn-outline">المميزات</a>
           <button
             type="button"
-            class="btn btn-supabase"
-            :disabled="supabaseLoading"
-            @click="testSupabase"
+            class="btn btn-diagnostics"
+            :disabled="diagLoading"
+            @click="runDiagnostics"
           >
-            {{ supabaseLoading ? 'جاري الاختبار…' : '🔗 اختبار اتصال Supabase' }}
+            {{ diagLoading ? 'جاري فحص الخادم…' : '🔍 اختبار شامل (API + قاعدة + Gemini)' }}
           </button>
         </div>
+        <p class="api-base-line">
+          <span class="api-base-label">عنوان الـ API الحالي:</span>
+          <code class="api-base-url">{{ apiBase }}</code>
+        </p>
+        <div class="diagnostics-links">
+          <a :href="apiDocsUrl" class="btn btn-outline btn-sm" target="_blank" rel="noopener noreferrer">
+            وثائق Swagger
+          </a>
+          <a :href="apiOpenApiUrl" class="btn btn-outline btn-sm" target="_blank" rel="noopener noreferrer">
+            openapi.json
+          </a>
+        </div>
         <div
-          v-if="supabaseResult || supabaseError"
-          class="supabase-status-box"
-          :class="supabaseError || (supabaseResult && !supabaseResult.ok) ? 'supabase-bad' : 'supabase-ok'"
+          v-if="diagnosticResults?.length"
+          class="diagnostics-panel"
+          :class="allDiagnosticsOk ? 'diagnostics-all-ok' : 'diagnostics-has-fail'"
           role="status"
         >
-          <template v-if="supabaseError">{{ supabaseError }}</template>
-          <template v-else-if="supabaseResult">
-            {{ supabaseResult.message }}
-            <span v-if="supabaseResult.configured" class="supabase-meta">
-              جدول: {{ supabaseResult.table_ok ? 'موجود' : '—' }} · مفتاح Gemini في DB:
-              {{ supabaseResult.gemini_row_filled ? 'موجود' : 'فارغ' }}
-            </span>
-          </template>
+          <p class="diagnostics-summary">
+            {{
+              allDiagnosticsOk
+                ? 'جميع فحوصات الخادم نجحت.'
+                : 'بعض الفحوصات فشلت — راجع التفاصيل أدناه.'
+            }}
+          </p>
+          <ul class="diagnostics-list">
+            <li
+              v-for="row in diagnosticResults"
+              :key="row.id"
+              class="diag-row"
+              :class="row.ok ? 'diag-ok' : 'diag-fail'"
+            >
+              <div class="diag-row-head">
+                <span class="diag-icon">{{ row.ok ? '✓' : '✕' }}</span>
+                <strong class="diag-label">{{ row.label }}</strong>
+                <span v-if="row.durationMs != null" class="diag-ms">{{ row.durationMs }} ms</span>
+              </div>
+              <p class="diag-msg">{{ row.message }}</p>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
@@ -213,51 +254,145 @@ async function testSupabase() {
   background: rgba(14, 116, 144, 0.08);
 }
 
-.btn-supabase {
+.btn-diagnostics {
   color: #fff;
-  background: linear-gradient(135deg, #3ecf8e 0%, #1e8a5a 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
   border: none;
 }
 
-.btn-supabase:hover:not(:disabled) {
+.btn-diagnostics:hover:not(:disabled) {
   filter: brightness(1.06);
   transform: translateY(-1px);
 }
 
-.btn-supabase:disabled {
+.btn-diagnostics:disabled {
   opacity: 0.75;
   cursor: wait;
 }
 
-.supabase-status-box {
-  margin-top: 1.25rem;
-  padding: 0.85rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.api-base-line {
+  margin: 1rem auto 0;
+  max-width: 42rem;
   text-align: center;
-  max-width: 36rem;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.supabase-ok {
-  background: rgba(62, 207, 142, 0.12);
-  border: 1px solid rgba(62, 207, 142, 0.45);
-  color: #0f5132;
-}
-
-.supabase-bad {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #991b1b;
-}
-
-.supabase-meta {
-  display: block;
-  margin-top: 0.5rem;
   font-size: 0.8rem;
-  opacity: 0.9;
+  color: var(--color-text);
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.api-base-label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.api-base-url {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  font-size: 0.78rem;
+  word-break: break-all;
+  direction: ltr;
+}
+
+.diagnostics-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.diagnostics-panel {
+  margin: 1.25rem auto 0;
+  max-width: 40rem;
+  padding: 1rem 1.15rem;
+  border-radius: 0.65rem;
+  text-align: right;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+}
+
+.diagnostics-all-ok {
+  border-color: rgba(62, 207, 142, 0.45);
+  background: rgba(62, 207, 142, 0.08);
+}
+
+.diagnostics-has-fail {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.diagnostics-summary {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.diagnostics-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diag-row {
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.diag-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.diag-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.diag-icon {
+  font-weight: 700;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.diag-ok .diag-icon {
+  color: #059669;
+}
+
+.diag-fail .diag-icon {
+  color: #dc2626;
+}
+
+.diag-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+}
+
+.diag-ms {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.diag-msg {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--color-text);
+  opacity: 0.92;
+  font-size: 0.82rem;
 }
 
 .btn-lg {
@@ -374,18 +509,22 @@ async function testSupabase() {
   .btn-outline:hover {
     background: rgba(34, 211, 238, 0.1);
   }
-  .btn-supabase {
-    background: linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%);
+  .btn-diagnostics {
+    background: linear-gradient(135deg, #818cf8 0%, #4f46e5 100%);
   }
-  .supabase-ok {
-    background: rgba(45, 212, 191, 0.12);
+  .diagnostics-all-ok {
     border-color: rgba(45, 212, 191, 0.4);
-    color: #6ee7b7;
+    background: rgba(45, 212, 191, 0.08);
   }
-  .supabase-bad {
-    background: rgba(248, 113, 113, 0.12);
+  .diagnostics-has-fail {
     border-color: rgba(248, 113, 113, 0.35);
-    color: #fca5a5;
+    background: rgba(248, 113, 113, 0.08);
+  }
+  .diag-ok .diag-icon {
+    color: #34d399;
+  }
+  .diag-fail .diag-icon {
+    color: #f87171;
   }
 }
 </style>

@@ -1,5 +1,9 @@
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000'
 
+export function getApiBaseUrl(): string {
+  return API_BASE
+}
+
 export interface FormData {
   name?: string | null
   age?: number | null
@@ -61,12 +65,134 @@ export async function checkHealth(): Promise<HealthStatus> {
 export interface GeminiStatus {
   ok: boolean
   message: string
+  cached?: boolean
 }
 
 export async function checkGeminiStatus(): Promise<GeminiStatus> {
   const response = await fetch(`${API_BASE}/api/gemini-status`)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
+}
+
+/** نتيجة خطوة واحدة من تشخيص الخادم */
+export interface DiagnosticResult {
+  id: string
+  label: string
+  ok: boolean
+  message: string
+  durationMs?: number
+}
+
+/**
+ * يجري بالتتابع: صحة الخادم، OpenAPI، Gemini، Supabase.
+ * يتوقف عن طلبات إضافية إن فشل الاتصال الأساسي بـ /api/health.
+ */
+export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
+  const results: DiagnosticResult[] = []
+
+  const tHealth = performance.now()
+  try {
+    const h = await checkHealth()
+    results.push({
+      id: 'health',
+      label: 'صحة الخادم (/api/health)',
+      ok: h.status === 'ok',
+      message: `الوضع: ${h.mode} · المزوّد: ${h.provider} · LLM جاهز: ${h.llm_configured ? 'نعم' : 'لا'} · Gemini من البيئة: ${h.gemini_from_env ? 'نعم' : 'لا'} · Supabase مفعّل: ${h.supabase_settings_enabled ? 'نعم' : 'لا'} · مفتاح من Supabase: ${h.gemini_from_supabase ? 'نعم' : 'لا'}`,
+      durationMs: Math.round(performance.now() - tHealth),
+    })
+  } catch {
+    results.push({
+      id: 'health',
+      label: 'صحة الخادم (/api/health)',
+      ok: false,
+      message: `تعذّر الاتصال بـ ${API_BASE}. تأكد من تشغيل الـ backend أو ضبط VITE_API_URL عند البناء.`,
+      durationMs: Math.round(performance.now() - tHealth),
+    })
+    results.push({
+      id: 'openapi',
+      label: 'توثيق API (openapi.json)',
+      ok: false,
+      message: 'تُخطى — لا يوجد اتصال بالخادم.',
+    })
+    results.push({
+      id: 'gemini',
+      label: 'اتصال Gemini',
+      ok: false,
+      message: 'تُخطى.',
+    })
+    results.push({
+      id: 'supabase',
+      label: 'قاعدة Supabase',
+      ok: false,
+      message: 'تُخطى.',
+    })
+    return results
+  }
+
+  const tOpen = performance.now()
+  try {
+    const r = await fetch(`${API_BASE}/openapi.json`)
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const j = (await r.json()) as { paths?: Record<string, unknown> }
+    const n = j.paths ? Object.keys(j.paths).length : 0
+    results.push({
+      id: 'openapi',
+      label: 'توثيق API (openapi.json)',
+      ok: true,
+      message: `تم الجلب بنجاح — عدد المسارات في المخطط: ${n}`,
+      durationMs: Math.round(performance.now() - tOpen),
+    })
+  } catch (e) {
+    results.push({
+      id: 'openapi',
+      label: 'توثيق API (openapi.json)',
+      ok: false,
+      message: e instanceof Error ? e.message : 'فشل جلب المخطط',
+      durationMs: Math.round(performance.now() - tOpen),
+    })
+  }
+
+  const tGem = performance.now()
+  try {
+    const g = await checkGeminiStatus()
+    results.push({
+      id: 'gemini',
+      label: 'اتصال Gemini (/api/gemini-status)',
+      ok: g.ok,
+      message: `${g.message}${g.cached ? ' · (نتيجة من الكاش)' : ''}`,
+      durationMs: Math.round(performance.now() - tGem),
+    })
+  } catch (e) {
+    results.push({
+      id: 'gemini',
+      label: 'اتصال Gemini (/api/gemini-status)',
+      ok: false,
+      message: e instanceof Error ? e.message : 'فشل الطلب',
+      durationMs: Math.round(performance.now() - tGem),
+    })
+  }
+
+  const tSb = performance.now()
+  try {
+    const s = await checkSupabaseStatus()
+    results.push({
+      id: 'supabase',
+      label: 'قاعدة Supabase (/api/supabase-status)',
+      ok: s.ok,
+      message: `${s.message} · الجدول: ${s.table_ok ? 'موجود' : 'لا'} · صف المفتاح: ${s.gemini_row_filled ? 'مملوء' : 'فارغ/غير جاهز'}`,
+      durationMs: Math.round(performance.now() - tSb),
+    })
+  } catch (e) {
+    results.push({
+      id: 'supabase',
+      label: 'قاعدة Supabase (/api/supabase-status)',
+      ok: false,
+      message: e instanceof Error ? e.message : 'فشل الطلب',
+      durationMs: Math.round(performance.now() - tSb),
+    })
+  }
+
+  return results
 }
 
 export interface SupabaseStatusResult {
