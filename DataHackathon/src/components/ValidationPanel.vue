@@ -101,6 +101,9 @@ const severityMeta = (s: string) => {
       </div>
 
       <!-- Summary -->
+      <p v-if="result.hybrid_rules_applied" class="hybrid-notice">
+        ⚙️ تم دمج <strong>قواعد أعمال LFS</strong> (Business Rules) مع نتيجة التحليل.
+      </p>
       <p class="summary">{{ result.summary }}</p>
 
       <!-- Errors -->
@@ -263,6 +266,17 @@ const severityMeta = (s: string) => {
 .badge-valid   { color: #10b981; background: rgba(16,185,129,0.12); }
 .badge-warning { color: #f59e0b; background: rgba(245,158,11,0.12); }
 .badge-error   { color: #ef4444; background: rgba(239,68,68,0.12);  }
+
+.hybrid-notice {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  background: rgba(14, 116, 144, 0.1);
+  border: 1px solid rgba(14, 116, 144, 0.25);
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
 
 /* Summary */
 .summary {

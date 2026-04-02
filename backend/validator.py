@@ -214,11 +214,56 @@ async def _call_openai_compatible(form_data: dict, base_url: str, api_key: str, 
     return json.loads(response.choices[0].message.content)
 
 
+def _form_payload_to_hybrid_row(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    يحوّل حقول الاستمارة المبسّطة (education, sector, …) إلى أسماء أعمدة LFS
+    التي يتوقعها apply_lfs_hybrid_rules (q_301, q_534, …).
+    """
+    row: dict[str, Any] = dict(data)
+    edu = row.get("education")
+    if edu is not None and str(edu).strip() != "":
+        row.setdefault("q_301", edu)
+    jt = row.get("job_title")
+    if jt is not None and str(jt).strip() != "":
+        row.setdefault("q_537_e_job", jt)
+    ms = row.get("monthly_salary")
+    if ms is not None and ms != "" and ms != 0:
+        row.setdefault("q_602_val", ms)
+    sec = row.get("sector")
+    if sec is not None and str(sec).strip() != "":
+        row.setdefault("q_534", sec)
+    mar = row.get("marital_status")
+    if mar is not None and str(mar).strip() != "":
+        row.setdefault("marage_status", mar)
+    return row
+
+
 async def validate_form(raw_data: dict) -> dict:
-    clean = {k: v for k, v in raw_data.items() if v is not None and v != "" and v != 0 and k != "name"}
+    data = dict(raw_data)
+    use_llm = bool(data.pop("use_llm", True))
+    apply_hybrid = bool(data.pop("apply_hybrid_rules", True))
+
+    clean = {k: v for k, v in data.items() if v is not None and v != "" and v != 0 and k != "name"}
 
     if len(clean) < 2:
         return _empty_result()
+
+    hybrid_row = _form_payload_to_hybrid_row(data)
+
+    # قواعد الأعمال فقط — بلا نموذج لغوي (مثل Excel: use_llm=False)
+    if not use_llm:
+        base: dict[str, Any] = {
+            "confidence_score": 100,
+            "status": "valid",
+            "errors": [],
+            "suggestions": [],
+            "summary": "تحليل بقواعد الأعمال فقط — لم يُستدعَ نموذج لغوي.",
+        }
+        if apply_hybrid:
+            merged = merge_hybrid_into_result(base, apply_lfs_hybrid_rules(hybrid_row))
+            return apply_code_desc_false_positive_filter(merged, hybrid_row)
+        base["summary"] = "لم يُفعّل لا التحليل الذكي ولا قواعد الأعمال — اختر «قواعد الأعمال» أو «الكل»."
+        return base
 
     gemini_key = get_gemini_api_key()
     groq_key = os.getenv("GROQ_API_KEY")
@@ -226,28 +271,33 @@ async def validate_form(raw_data: dict) -> dict:
 
     try:
         if gemini_key:
-            return await _call_gemini(clean)
-
-        if groq_key:
-            return await _call_openai_compatible(
+            result = await _call_gemini(clean)
+        elif groq_key:
+            result = await _call_openai_compatible(
                 clean,
                 base_url="https://api.groq.com/openai/v1",
                 api_key=groq_key,
                 model="llama-3.3-70b-versatile",
             )
-
-        if openai_key:
-            return await _call_openai_compatible(
+        elif openai_key:
+            result = await _call_openai_compatible(
                 clean,
                 base_url="https://api.openai.com/v1",
                 api_key=openai_key,
                 model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             )
+        else:
+            result = _mock_validate(clean)
 
-        return _mock_validate(clean)
+        if apply_hybrid:
+            result = merge_hybrid_into_result(result, apply_lfs_hybrid_rules(hybrid_row))
+        return apply_code_desc_false_positive_filter(result, hybrid_row)
 
     except Exception:
-        return _mock_validate(clean)
+        result = _mock_validate(clean)
+        if apply_hybrid:
+            result = merge_hybrid_into_result(result, apply_lfs_hybrid_rules(hybrid_row))
+        return apply_code_desc_false_positive_filter(result, hybrid_row)
 
 
 # ---------- Dynamic batch validation for arbitrary Excel forms ----------
@@ -718,11 +768,33 @@ async def validate_rows_dynamic(
 
 
 def validate_form_quick(data: dict) -> dict:
-    """تحقق فوري بالقواعد — للمعالجة الدفعية بدون LLM."""
-    clean = {k: v for k, v in data.items() if v is not None and v != "" and v != 0 and k != "name"}
+    """تحقق فوري بالقواعد — للمعالجة الدفعية بدون مفتاح LLM؛ يدعم use_llm / apply_hybrid_rules كـ validate_form."""
+    d = dict(data)
+    use_llm = bool(d.pop("use_llm", True))
+    apply_hybrid = bool(d.pop("apply_hybrid_rules", True))
+    clean = {k: v for k, v in d.items() if v is not None and v != "" and v != 0 and k != "name"}
     if len(clean) < 2:
         return _empty_result()
-    return _mock_validate(clean)
+    hybrid_row = _form_payload_to_hybrid_row(d)
+
+    if not use_llm:
+        base: dict[str, Any] = {
+            "confidence_score": 100,
+            "status": "valid",
+            "errors": [],
+            "suggestions": [],
+            "summary": "تحليل بقواعد الأعمال فقط — لم يُستدعَ نموذج لغوي.",
+        }
+        if apply_hybrid:
+            merged = merge_hybrid_into_result(base, apply_lfs_hybrid_rules(hybrid_row))
+            return apply_code_desc_false_positive_filter(merged, hybrid_row)
+        base["summary"] = "لم يُفعّل لا التحليل الذكي ولا قواعد الأعمال — اختر «قواعد الأعمال» أو «الكل»."
+        return base
+
+    result = _mock_validate(clean)
+    if apply_hybrid:
+        result = merge_hybrid_into_result(result, apply_lfs_hybrid_rules(hybrid_row))
+    return apply_code_desc_false_positive_filter(result, hybrid_row)
 
 
 def _empty_result() -> dict:

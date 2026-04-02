@@ -17,6 +17,9 @@ export interface FormData {
   sector?: string | null
   marital_status?: string | null
   children_count?: number | null
+  /** يُرسل لـ `/api/validate` — نفس منطق تحليل Excel */
+  use_llm?: boolean
+  apply_hybrid_rules?: boolean
 }
 
 export interface ValidationError {
@@ -35,6 +38,8 @@ export interface ValidationResult {
   errors: ValidationError[]
   suggestions: string[]
   summary: string
+  /** مُضمَّن مع استجابة `/api/validate` عند تطبيق قواعد LFS_Business_Rules */
+  hybrid_rules_applied?: boolean
 }
 
 export interface HealthStatus {

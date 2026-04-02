@@ -43,6 +43,10 @@ function emptyLfsSurvey(): LfsLiveSurveyFields {
 const form = ref<LfsLiveSurveyFields>(emptyLfsSurvey())
 const lfsMeta = ref<Record<string, string>>({})
 
+/** قواعد فقط | Gemini فقط | الاثنان — مطابق لـ ExcelView */
+type AnalysisEngine = 'rules' | 'gemini' | 'both'
+const analysisEngine = ref<AnalysisEngine>('both')
+
 function lfsSurveyToApiPayload(s: LfsLiveSurveyFields): FormData {
   const y = s.d_ystartwk
   const cy = new Date().getFullYear()
@@ -65,6 +69,24 @@ function lfsSurveyToApiPayload(s: LfsLiveSurveyFields): FormData {
   }
 }
 
+function buildValidatePayload(): FormData {
+  const base = lfsSurveyToApiPayload(form.value)
+  const useLlm = analysisEngine.value !== 'rules'
+  const applyHybrid = analysisEngine.value !== 'gemini'
+  return { ...base, use_llm: useLlm, apply_hybrid_rules: applyHybrid }
+}
+
+const analyzeModeHint = computed(() => {
+  switch (analysisEngine.value) {
+    case 'rules':
+      return 'قواعد الأعمال فقط — دون استدعاء النموذج اللغوي.'
+    case 'gemini':
+      return 'تحليل دلالي فقط — بدون دمج قواعد LFS الصريحة.'
+    default:
+      return 'Gemini (أو المزوّد المتاح) + قواعد الأعمال.'
+  }
+})
+
 function meaningfulFieldCount(s: LfsLiveSurveyFields): number {
   const p = lfsSurveyToApiPayload(s)
   let n = 0
@@ -82,16 +104,23 @@ const validationFieldLabels = computed(() => {
     const q = columnQuestionLabel(tag, m)
     return q === tag ? fallback : q
   }
+  const q301 = L('q_301', 'أعلى مؤهل')
+  const q534 = L('q_534', 'القطاع المؤسسي')
   return {
     name: L('f_m_id', 'معرّف الفرد'),
     age: L('age', 'العمر'),
     gender: L('gender', 'جنس الفرد'),
     nationality: L('nationality', 'جنسية الفرد'),
-    education: L('q_301', 'أعلى مؤهل'),
+    education: q301,
+    q_301: q301,
+    q_301_desc: q301,
     job_title: L('q_537_e_job', 'المسمى الوظيفي'),
     years_experience: 'سنوات الخبرة (تقدير من سنة بداية العمل)',
     monthly_salary: L('q_602_val', 'الأجر الشهري'),
-    sector: L('q_534', 'القطاع المؤسسي'),
+    sector: q534,
+    q_534: q534,
+    q_534_desc: q534,
+    q_302_e_txt: L('q_302_e_txt', 'مجال الدراسة / التخصص'),
     marital_status: L('marage_status', 'الحالة الاجتماعية'),
     children_count: 'عدد الأبناء',
   }
@@ -189,7 +218,7 @@ function triggerValidation() {
     }
     isValidating.value = true
     try {
-      validationResult.value = await validateForm(lfsSurveyToApiPayload(form.value))
+      validationResult.value = await validateForm(buildValidatePayload())
       apiError.value = false
     } catch {
       apiError.value = true
@@ -201,11 +230,25 @@ function triggerValidation() {
 
 watch(form, triggerValidation, { deep: true })
 
+watch(analysisEngine, async () => {
+  validationResult.value = null
+  if (meaningfulFieldCount(form.value) < 2) return
+  isValidating.value = true
+  try {
+    validationResult.value = await validateForm(buildValidatePayload())
+    apiError.value = false
+  } catch {
+    apiError.value = true
+  } finally {
+    isValidating.value = false
+  }
+})
+
 async function handleSubmit() {
   if (debounceTimer) clearTimeout(debounceTimer)
   isSubmitting.value = true
   try {
-    validationResult.value = await validateForm(lfsSurveyToApiPayload(form.value))
+    validationResult.value = await validateForm(buildValidatePayload())
     apiError.value = false
     if (validationResult.value.status === 'valid' || validationResult.value.confidence_score >= 70) {
       showSuccess.value = true
@@ -252,6 +295,40 @@ const currentYear = new Date().getFullYear()
         ✓ متصل — يعمل بنموذج
         {{ health.provider === 'gemini' ? 'Google Gemini' : health.provider === 'groq' ? 'Groq LLaMA' : 'OpenAI GPT' }}
         مباشرةً
+      </div>
+
+      <div class="survey-engine" role="group" aria-label="نوع التحليل">
+        <span class="engine-label">نوع التحليل</span>
+        <div class="engine-btns">
+          <button
+            type="button"
+            class="engine-btn"
+            :class="{ 'engine-btn-active': analysisEngine === 'rules' }"
+            :disabled="isSubmitting || isValidating"
+            @click="analysisEngine = 'rules'"
+          >
+            قواعد الأعمال
+          </button>
+          <button
+            type="button"
+            class="engine-btn"
+            :class="{ 'engine-btn-active': analysisEngine === 'gemini' }"
+            :disabled="isSubmitting || isValidating"
+            @click="analysisEngine = 'gemini'"
+          >
+            Gemini
+          </button>
+          <button
+            type="button"
+            class="engine-btn"
+            :class="{ 'engine-btn-active': analysisEngine === 'both' }"
+            :disabled="isSubmitting || isValidating"
+            @click="analysisEngine = 'both'"
+          >
+            الكل
+          </button>
+        </div>
+        <p class="engine-hint">{{ analyzeModeHint }}</p>
       </div>
     </div>
 
@@ -430,6 +507,58 @@ const currentYear = new Date().getFullYear()
   opacity: 0.85;
   font-size: 1rem;
   margin-bottom: 1rem;
+}
+
+.survey-engine {
+  margin-top: 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-background-soft);
+}
+.engine-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  margin-bottom: 0.45rem;
+  opacity: 0.9;
+}
+.engine-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.engine-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.engine-btn:hover:not(:disabled) {
+  background: var(--color-background-mute);
+}
+.engine-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.engine-btn-active {
+  background: rgba(14, 116, 144, 0.14);
+  border-color: #0e7490;
+  color: #0e7490;
+  font-weight: 600;
+}
+.engine-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.82;
+  line-height: 1.45;
 }
 
 .hint {

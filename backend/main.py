@@ -100,6 +100,14 @@ class FormData(BaseModel):
     sector: Optional[str] = None
     marital_status: Optional[str] = None
     children_count: Optional[int] = None
+    use_llm: bool = Field(
+        True,
+        description="إذا False: قواعد الأعمال فقط (مثل تحليل Excel بوضع القواعد).",
+    )
+    apply_hybrid_rules: bool = Field(
+        True,
+        description="إذا False: نموذج لغوي فقط دون دمج قواعد LFS (مثل وضع Gemini في Excel).",
+    )
 
 
 class GeminiApiKeyPayload(BaseModel):
