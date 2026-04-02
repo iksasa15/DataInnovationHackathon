@@ -1,0 +1,5 @@
+# Netlify: Base directory = DataHackathon، Build = npm run build، Publish = dist
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

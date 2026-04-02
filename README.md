@@ -131,25 +131,85 @@ backend/.venv/bin/python backend/scripts/eval_lfs_notes.py
 
 ---
 
-## النشر (Deploy) — إرشاد عام
+## النشر (Deploy) — خطوات عملية
 
-> **يُفضّل** توفير **رابط نشر عام** للمحكمين في حال تعذّر التشغيل المحلي، وفق دليل المتسابق.
+> وفق دليل المتسابق: رابط **واجهة عامة** + تعليمات تشغيل. الـ API والواجهة غالباً على **نطاقين**؛ يجب ضبط **`ALLOWED_ORIGINS`** و **`VITE_API_URL`**.
 
-أمثلة شائعة (يختار الفريق ما يناسب بنيته):
+### أ) نشر الـ API (Backend) — مثال Render
 
-- **الواجهة**: بناء `npm run build` داخل `DataHackathon` ورفع `dist` إلى استضافة ثابتة (مثل Cloudflare Pages، Netlify، Vercel) مع تعيين `VITE_API_URL` إلى عنوان الـ API المنشور.  
-- **الخادم**: تشغيل `uvicorn` خلف عملية مدارة (Docker، Railway، Render، Google Cloud Run، إلخ) مع تمرير `GEMINI_API_KEY` كمتغير بيئة **سري** وليس داخل الكود.
+1. ادفع المشروع إلى GitHub وادخل [Render](https://render.com) → **New** → **Blueprint** أو **Web Service**.  
+2. إن استخدمت Blueprint: الملف [`render.yaml`](render.yaml) يوجّه `rootDir` إلى `backend`.  
+3. يدوياً (Web Service):  
+   - **Root Directory:** `backend`  
+   - **Build Command:** `pip install -r requirements.txt`  
+   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`  
+   - **Python:** 3.11  
+4. في **Environment** أضف (حسب ما تستخدم):
+   - `ALLOWED_ORIGINS` = رابط الواجهة المنشورة فقط، مثال: `https://اسمك.netlify.app` (بدون شرطة أخيرة؛ يمكن عدة عناوين مفصولة بفاصلة إن لزم).  
+   - مفتاح Gemini: إما `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + جدول `app_settings`، أو `GEMINI_API_KEY` مباشرة.  
+   - (مُستحسن للإنتاج) `DISABLE_CLIENT_GEMINI_KEY=true`  
+5. بعد النشر انسخ **رابط الخدمة** (مثل `https://alharis-api.onrender.com`) — هذا هو **عنوان الـ API**.
+
+**Railway / Fly.io / Google Cloud Run:** نفس الفكرة: تشغيل `uvicorn main:app --host 0.0.0.0 --port $PORT` (أو المنفذ الذي توفره المنصة) ومجلد العمل = `backend`.
+
+---
+
+### ب) نشر الواجهة (Frontend) — مثال Netlify أو Vercel
+
+1. أنشئ ملف بيئة **قبل البناء** (لا ترفعه لـ Git إن كان فيه أسرار؛ هنا عنوان API فقط):  
+   في مجلد `DataHackathon` أنشئ `.env.production`:
+
+   ```env
+   VITE_API_URL=https://رابط-الـ-api-من-الخطوة-أ.onrender.com
+   ```
+
+2. من جذر `DataHackathon`:
+
+   ```bash
+   npm ci
+   npm run build
+   ```
+
+3. ارفع مجلد **`dist`** إلى Netlify / Cloudflare Pages / Vercel، أو اربط المستودع مع:
+   - **Base directory:** `DataHackathon`  
+   - **Build command:** `npm run build`  
+   - **Publish directory:** `dist`  
+4. في Netlify يمكن استخدام [`DataHackathon/netlify.toml`](DataHackathon/netlify.toml) لإعادة توجيه SPA.
+
+5. بعد ظهور رابط الواجهة، ارجع إلى **متغيرات الـ API** على Render وأضف/حدّث `ALLOWED_ORIGINS` ليشمل **نفس رابط الواجهة** ثم أعد نشر الـ API (أو انتظر إعادة التشغيل).
+
+---
+
+### ج) تحقق سريع
+
+- من المتصفح: `https://رابط-ال-api/api/health` يجب أن يعيد JSON.  
+- افتح الواجهة وجرب الاستمارة أو رفع Excel؛ إن ظهر خطأ CORS راجع `ALLOWED_ORIGINS` (بما فيه `https://` وليس `http` إلا إن كان الموقع على HTTP).
 
 **عنوان النشر (يُحدَّث من الفريق):**  
-`https://YOUR-DEPLOYMENT-URL.example.com`
+`https://YOUR-FRONTEND.example.com` ← الواجهة للمحكمين | `https://YOUR-API.example.com` ← الـ API
 
 ---
 
 ## مفاتيح API للمحكمين
 
-- يُفضّل تزويد المحكمين بمفتاح **Gemini** (أو البديل المتفق عليه) **برصيد كافٍ** لفترة التقييم، عبر قناة آمنة (بريد الهيئة، ملف مشفّر، أو متغيرات في منصة النشر).  
-- **لا تُرفع المفاتيح إلى Git.** الملف `backend/.env` مُدرَج في `.gitignore`.  
-- يمكن للمحكم لصق مفتاح Gemini من الواجهة إن وُجدت شاشة لذلك؛ الأفضل ضبط `GEMINI_API_KEY` على الخادم للاختبار الجماعي لملفات Excel.
+- **الأفضل للنشر:** ضبط `GEMINI_API_KEY` في **متغيرات بيئة الخادم** (Railway / Render / إلخ). عندها تُخفى الواجهة تلقائياً حقل «مفتاح Gemini» ويُظهر تنبيهاً أن المفتاح يُدار من الاستضافة — **المستخدم النهائي لا يحتاج إدخال مفتاح**. لتغيير المفتاح لاحقاً: عدّل المتغير في لوحة الاستضافة وأعد تشغيل الخادم (أو انتظر إعادة التشغيل التلقائي).  
+- **إنتاج أقوى:** فعّل `DISABLE_CLIENT_GEMINI_KEY=true` على الخادم لرفض أي محاولة إرسال مفتاح من المتصفح.  
+- **واجهة الإنتاج:** يمكن تعيين `VITE_HIDE_GEMINI_KEY_INPUT=true` عند `npm run build` (انظر `DataHackathon/.env.example`) لإخفاء الحقل حتى في بيئة التطوير المبنية.  
+- يُفضّل تزويد المحكمين **برصيد كافٍ** عبر القنوات الآمنة؛ **لا تُرفع المفاتيح إلى Git** (`backend/.env` في `.gitignore`).
+
+### تغيير مفتاح Gemini من Supabase (بدون إعادة نشر)
+
+1. أنشئ مشروعاً في [Supabase](https://supabase.com) ونفّذ SQL من الملف [`supabase/schema.sql`](supabase/schema.sql) (SQL Editor).
+2. من **Table Editor** → `app_settings` → الصف `gemini_api_key` → ضع المفتاح في العمود `config_value` واحفظ.
+3. في بيئة الخادم (استضافة الـ API) أضف:
+   - `SUPABASE_URL` = رابط المشروع  
+   - `SUPABASE_SERVICE_ROLE_KEY` = **مفتاح service_role** (من Project Settings → API) — **لا** تضعه في الواجهة أو Git.
+4. أولوية المفتاح في الخادم: **جلسة الواجهة (إن وُجدت)** ← **Supabase** (إن وُجدت قيمة) ← **`GEMINI_API_KEY` في البيئة**.
+5. القراءة من Supabase تُخزَّن مؤقتاً (~60 ثانية). بعد تغيير المفتاح في الجدول يمكنك:
+   - الانتظار حتى انتهاء المدة، أو  
+   - استدعاء: `POST /api/admin/refresh-supabase-cache` مع الترويسة `X-Admin-Secret: <ADMIN_SECRET>` بعد ضبط `ADMIN_SECRET` في بيئة الخادم.
+
+عند تفعيل Supabase يُخفى حقل المفتاح في الواجهة تلقائياً.
 
 ---
 
@@ -165,8 +225,11 @@ backend/.venv/bin/python backend/scripts/eval_lfs_notes.py
 
 ```
 DataInnovationHackathon/
+├── supabase/
+│   └── schema.sql           # جدول app_settings لمفتاح Gemini
 ├── backend/                 # FastAPI — التحقق، Gemini، قواعد hybrid، ميتاداتا
 │   ├── main.py
+│   ├── supabase_settings.py # قراءة المفتاح من Supabase
 │   ├── validator.py
 │   ├── prompts.py
 │   ├── lfs_metadata.py

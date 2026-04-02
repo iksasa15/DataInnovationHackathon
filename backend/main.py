@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Literal
 
@@ -12,8 +13,53 @@ from validator import (
     check_gemini_connection,
     set_gemini_api_key,
 )
+from supabase_settings import supabase_settings_enabled
 
 load_dotenv()
+
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _gemini_key_in_env() -> bool:
+    return bool((os.getenv("GEMINI_API_KEY") or "").strip())
+
+
+def _supabase_gemini_configured() -> bool:
+    """يوجد مفتاح فعلي في Supabase (بعد الجلب المؤقت)."""
+    try:
+        from supabase_settings import fetch_gemini_api_key_sync, supabase_settings_enabled
+
+        if not supabase_settings_enabled():
+            return False
+        return bool(fetch_gemini_api_key_sync())
+    except Exception:
+        return False
+
+
+def _client_can_post_gemini_key() -> bool:
+    """عند تعطيله في الإنتاج لا يُقبل المفتاح من المتصفح — فقط من متغيرات البيئة."""
+    return not _env_truthy("DISABLE_CLIENT_GEMINI_KEY")
+
+
+def _cors_allow_origins() -> list[str]:
+    """محلياً + أي نطاقات تضيفها في ALLOWED_ORIGINS (مفصولة بفاصلة) للواجهة المنشورة."""
+    defaults = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ]
+    raw = (os.getenv("ALLOWED_ORIGINS") or os.getenv("CORS_ORIGINS") or "").strip()
+    extra = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    seen: set[str] = set()
+    out: list[str] = []
+    for o in defaults + extra:
+        if o not in seen:
+            seen.add(o)
+            out.append(o)
+    return out
+
 
 app = FastAPI(
     title="الحارس الدلالي API",
@@ -23,11 +69,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=_cors_allow_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,6 +96,7 @@ class GeminiApiKeyPayload(BaseModel):
 @app.get("/api/health")
 async def health():
     from validator import get_gemini_api_key
+
     has_gemini = bool(get_gemini_api_key())
     has_groq = bool(os.getenv("GROQ_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
@@ -71,6 +114,10 @@ async def health():
         "llm_configured": configured,
         "provider": provider,
         "mode": "live" if configured else "demo",
+        "gemini_from_env": _gemini_key_in_env(),
+        "supabase_settings_enabled": supabase_settings_enabled(),
+        "gemini_from_supabase": _supabase_gemini_configured(),
+        "client_can_set_gemini_key": _client_can_post_gemini_key(),
     }
 
 
@@ -80,9 +127,25 @@ async def gemini_status():
     return await check_gemini_connection()
 
 
+@app.get("/api/supabase-status")
+def supabase_status_check():
+    """اختبار الاتصال بـ Supabase وجدول app_settings (بدون كشف أسرار)."""
+    from supabase_settings import test_supabase_connection
+
+    return test_supabase_connection()
+
+
 @app.post("/api/gemini-api-key")
 async def set_gemini_key(payload: GeminiApiKeyPayload):
-    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي)."""
+    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي) — يُعطّل في الإنتاج بـ DISABLE_CLIENT_GEMINI_KEY."""
+    if not _client_can_post_gemini_key():
+        return JSONResponse(
+            status_code=403,
+            content={
+                "ok": False,
+                "message": "إرسال المفتاح من المتصفح معطّل. استخدم Supabase أو GEMINI_API_KEY على الخادم.",
+            },
+        )
     set_gemini_api_key(payload.api_key or "")
     return {"ok": True, "message": "تم حفظ المفتاح"}
 
@@ -166,6 +229,29 @@ async def validate_batch_dynamic(payload: DynamicBatchPayload):
         max_columns=payload.max_columns,
         apply_hybrid_rules=payload.apply_hybrid_rules,
     )
+
+
+@app.post("/api/admin/refresh-supabase-cache")
+async def refresh_supabase_cache(x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret")):
+    """
+    يمسح التخزين المؤقت لمفتاح Gemini من Supabase ليُعاد الجلب فوراً بعد تعديل الجدول.
+    يتطلب ضبط ADMIN_SECRET في بيئة الخادم وإرساله في الترويسة X-Admin-Secret.
+    """
+    secret = (os.getenv("ADMIN_SECRET") or "").strip()
+    if not secret:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "message": "ADMIN_SECRET غير مضبوط على الخادم"},
+        )
+    if (x_admin_secret or "").strip() != secret:
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "message": "غير مصرّح"},
+        )
+    from supabase_settings import invalidate_gemini_key_cache
+
+    invalidate_gemini_key_cache()
+    return {"ok": True, "message": "تم مسح ذاكرة التخزين المؤقت — سيُجلب المفتاح من Supabase في الطلب التالي"}
 
 
 if __name__ == "__main__":

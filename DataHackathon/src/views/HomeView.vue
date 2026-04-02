@@ -1,5 +1,25 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { checkSupabaseStatus } from '../services/api'
+import type { SupabaseStatusResult } from '../services/api'
+
+const supabaseLoading = ref(false)
+const supabaseResult = ref<SupabaseStatusResult | null>(null)
+const supabaseError = ref<string | null>(null)
+
+async function testSupabase() {
+  supabaseLoading.value = true
+  supabaseError.value = null
+  supabaseResult.value = null
+  try {
+    supabaseResult.value = await checkSupabaseStatus()
+  } catch {
+    supabaseError.value = 'تعذّر الاتصال بالخادم. تأكد أن الـ backend يعمل على المنفذ 8000.'
+  } finally {
+    supabaseLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -19,6 +39,29 @@ import { RouterLink } from 'vue-router'
         <div class="hero-actions">
           <RouterLink to="/survey" class="btn btn-primary">جرّب الاستبيان الآن</RouterLink>
           <a href="#features" class="btn btn-outline">المميزات</a>
+          <button
+            type="button"
+            class="btn btn-supabase"
+            :disabled="supabaseLoading"
+            @click="testSupabase"
+          >
+            {{ supabaseLoading ? 'جاري الاختبار…' : '🔗 اختبار اتصال Supabase' }}
+          </button>
+        </div>
+        <div
+          v-if="supabaseResult || supabaseError"
+          class="supabase-status-box"
+          :class="supabaseError || (supabaseResult && !supabaseResult.ok) ? 'supabase-bad' : 'supabase-ok'"
+          role="status"
+        >
+          <template v-if="supabaseError">{{ supabaseError }}</template>
+          <template v-else-if="supabaseResult">
+            {{ supabaseResult.message }}
+            <span v-if="supabaseResult.configured" class="supabase-meta">
+              جدول: {{ supabaseResult.table_ok ? 'موجود' : '—' }} · مفتاح Gemini في DB:
+              {{ supabaseResult.gemini_row_filled ? 'موجود' : 'فارغ' }}
+            </span>
+          </template>
         </div>
       </div>
     </section>
@@ -170,6 +213,53 @@ import { RouterLink } from 'vue-router'
   background: rgba(14, 116, 144, 0.08);
 }
 
+.btn-supabase {
+  color: #fff;
+  background: linear-gradient(135deg, #3ecf8e 0%, #1e8a5a 100%);
+  border: none;
+}
+
+.btn-supabase:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btn-supabase:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.supabase-status-box {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.supabase-ok {
+  background: rgba(62, 207, 142, 0.12);
+  border: 1px solid rgba(62, 207, 142, 0.45);
+  color: #0f5132;
+}
+
+.supabase-bad {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #991b1b;
+}
+
+.supabase-meta {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
 .btn-lg {
   padding: 0.9rem 1.75rem;
   font-size: 1.05rem;
@@ -283,6 +373,19 @@ import { RouterLink } from 'vue-router'
   }
   .btn-outline:hover {
     background: rgba(34, 211, 238, 0.1);
+  }
+  .btn-supabase {
+    background: linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%);
+  }
+  .supabase-ok {
+    background: rgba(45, 212, 191, 0.12);
+    border-color: rgba(45, 212, 191, 0.4);
+    color: #6ee7b7;
+  }
+  .supabase-bad {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: rgba(248, 113, 113, 0.35);
+    color: #fca5a5;
   }
 }
 </style>

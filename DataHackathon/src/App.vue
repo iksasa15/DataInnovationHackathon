@@ -1,7 +1,39 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
-import { checkGeminiStatus, setGeminiApiKey } from './services/api'
+import { checkGeminiStatus, setGeminiApiKey, checkHealth } from './services/api'
+import type { HealthStatus } from './services/api'
+
+/** حالة الخادم — لإخفاء حقل المفتاح عند ضبط GEMINI_API_KEY على الاستضافة */
+const health = ref<HealthStatus | null>(null)
+
+const showGeminiKeyInput = computed(() => {
+  if (import.meta.env.VITE_HIDE_GEMINI_KEY_INPUT === 'true') return false
+  const h = health.value
+  if (h?.gemini_from_env) return false
+  if (h?.supabase_settings_enabled) return false
+  if (h?.client_can_set_gemini_key === false) return false
+  return true
+})
+
+const geminiServerNote = computed(() => {
+  const h = health.value
+  if (h?.supabase_settings_enabled) {
+    return 'مفتاح Gemini يُدار من Supabase (جدول app_settings). عدّل config_value من Table Editor؛ التحديث يظهر خلال حوالي دقيقة أو بعد استدعاء مسح الكاش (انظر README).'
+  }
+  if (h?.gemini_from_env) {
+    return 'Gemini يعمل من مفتاح الخادم — غيّر GEMINI_API_KEY في الاستضافة دون إعادة بناء الواجهة.'
+  }
+  return ''
+})
+
+onMounted(async () => {
+  try {
+    health.value = await checkHealth()
+  } catch {
+    health.value = null
+  }
+})
 
 const geminiChecking = ref(false)
 const geminiStatus = ref<{ ok: boolean; message: string } | null>(null)
@@ -50,12 +82,13 @@ async function saveGeminiKey() {
         <RouterLink to="/analysis" class="nav-highlight">📂 تحليل الملف</RouterLink>
         <RouterLink to="/about">من نحن</RouterLink>
         <div class="nav-gemini">
-          <div class="gemini-api-row">
+          <p v-if="geminiServerNote" class="gemini-server-hint">{{ geminiServerNote }}</p>
+          <div v-if="showGeminiKeyInput" class="gemini-api-row">
             <input
               v-model="geminiApiKey"
               type="password"
               class="input-gemini-api"
-              placeholder="مفتاح Gemini API"
+              placeholder="مفتاح Gemini API (تطوير محلي)"
               autocomplete="off"
               @keydown.enter="saveGeminiKey"
             />
@@ -136,6 +169,18 @@ async function saveGeminiKey() {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.gemini-server-hint {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  max-width: 22rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 6px;
+  border: 1px solid #5eead4;
 }
 
 .nav-gemini {
@@ -370,6 +415,11 @@ async function saveGeminiKey() {
 }
 
 @media (prefers-color-scheme: dark) {
+  .gemini-server-hint {
+    color: #99f6e4;
+    background: #042f2e;
+    border-color: #0d9488;
+  }
   .logo-hackathon {
     color: #22d3ee;
   }

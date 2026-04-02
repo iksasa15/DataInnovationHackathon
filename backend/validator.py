@@ -2,6 +2,7 @@ import json
 import os
 import asyncio
 import difflib
+import time
 from typing import Any, Optional
 
 from openai import AsyncOpenAI
@@ -22,18 +23,46 @@ from prompts_lfs import format_few_shot_lfs_block
 
 # مفتاح Gemini المعيّن من الواجهة (يُفضّل على .env للجلسة الحالية)
 _gemini_api_key_override: Optional[str] = None
+_gemini_status_cache: Optional[tuple[float, dict]] = None
+
+
+def _gemini_status_cache_ttl_sec() -> float:
+    try:
+        return max(15.0, float(os.getenv("GEMINI_STATUS_CACHE_SECONDS", "90")))
+    except ValueError:
+        return 90.0
+
+
+def invalidate_gemini_status_cache() -> None:
+    global _gemini_status_cache
+    _gemini_status_cache = None
 
 
 def set_gemini_api_key(api_key: Optional[str]) -> None:
     """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي)."""
     global _gemini_api_key_override
     _gemini_api_key_override = (api_key or "").strip() or None
+    invalidate_gemini_status_cache()
 
 
 def get_gemini_api_key() -> str:
-    """مفتاح Gemini: من التعيين في الواجهة أولاً، وإلا من .env."""
+    """
+    أولوية المفتاح:
+    1) التعيين المؤقت من الواجهة (الجلسة)
+    2) جدول Supabase app_settings (إن وُجدت الإعدادات)
+    3) متغير البيئة GEMINI_API_KEY
+    """
     if _gemini_api_key_override:
         return _gemini_api_key_override
+    try:
+        from supabase_settings import fetch_gemini_api_key_sync, supabase_settings_enabled
+
+        if supabase_settings_enabled():
+            k = fetch_gemini_api_key_sync()
+            if k:
+                return k
+    except Exception:
+        pass
     return (os.getenv("GEMINI_API_KEY") or "").strip()
 
 
@@ -124,10 +153,20 @@ async def _call_gemini(form_data: dict) -> dict:
 
 
 async def check_gemini_connection() -> dict:
-    """التحقق من اتصال Gemini بعمل طلب بسيط."""
+    """التحقق من اتصال Gemini بعمل طلب بسيط. النتيجة تُخزَّن مؤقتاً لتقليل استهلاك الحصة."""
+    global _gemini_status_cache
+
     api_key = get_gemini_api_key()
     if not api_key:
         return {"ok": False, "message": "مفتاح GEMINI_API_KEY غير مضبوط في .env"}
+
+    now = time.time()
+    ttl = _gemini_status_cache_ttl_sec()
+    if _gemini_status_cache and (now - _gemini_status_cache[0]) < ttl:
+        out = dict(_gemini_status_cache[1])
+        out["cached"] = True
+        return out
+
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
@@ -136,17 +175,26 @@ async def check_gemini_connection() -> dict:
         )
         response = await asyncio.to_thread(model.generate_content, "قل: متصل")
         if response and response.text:
-            return {"ok": True, "message": "متصل بـ Gemini بنجاح"}
-        return {"ok": True, "message": "تم الاتصال"}
+            result = {"ok": True, "message": "متصل بـ Gemini بنجاح"}
+        else:
+            result = {"ok": True, "message": "تم الاتصال"}
+        _gemini_status_cache = (now, {k: v for k, v in result.items() if k != "cached"})
+        return result
     except Exception as exc:
         err = str(exc).lower()
         if "api_key" in err or "invalid" in err or "401" in err:
-            return {"ok": False, "message": "مفتاح API غير صالح أو منتهي"}
-        if "429" in err or "quota" in err:
-            return {"ok": False, "message": "تجاوز حد الاستخدام، جرّب لاحقاً"}
-        if "network" in err or "connection" in err:
-            return {"ok": False, "message": "فشل الاتصال بالشبكة"}
-        return {"ok": False, "message": f"خطأ: {str(exc)[:120]}"}
+            result = {"ok": False, "message": "مفتاح API غير صالح أو منتهي"}
+        elif "429" in err or "quota" in err or "rate" in err:
+            result = {
+                "ok": False,
+                "message": "تجاوز حد الاستخدام (Google). انتظر ساعات أو راجع الحصة في AI Studio — لا تكرر الطلب كثيراً.",
+            }
+        elif "network" in err or "connection" in err:
+            result = {"ok": False, "message": "فشل الاتصال بالشبكة"}
+        else:
+            result = {"ok": False, "message": f"خطأ: {str(exc)[:120]}"}
+        _gemini_status_cache = (now, result)
+        return result
 
 
 async def _call_openai_compatible(form_data: dict, base_url: str, api_key: str, model: str) -> dict:

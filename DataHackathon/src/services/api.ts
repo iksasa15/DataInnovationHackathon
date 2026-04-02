@@ -32,6 +32,14 @@ export interface HealthStatus {
   llm_configured: boolean
   provider: string
   mode: 'live' | 'demo'
+  /** مفعّل من متغير البيئة على الخادم — لا حاجة لمفتاح من المستخدم */
+  gemini_from_env?: boolean
+  /** تم ضبط Supabase URL + service role — المفتاح يُقرأ من جدول app_settings */
+  supabase_settings_enabled?: boolean
+  /** يوجد مفتاح غير فارغ في Supabase */
+  gemini_from_supabase?: boolean
+  /** هل يُسمح بإرسال المفتاح من المتصفح */
+  client_can_set_gemini_key?: boolean
 }
 
 export async function validateForm(data: FormData): Promise<ValidationResult> {
@@ -61,14 +69,39 @@ export async function checkGeminiStatus(): Promise<GeminiStatus> {
   return response.json()
 }
 
+export interface SupabaseStatusResult {
+  ok: boolean
+  message: string
+  configured: boolean
+  table_ok: boolean
+  gemini_row_filled: boolean
+}
+
+export async function checkSupabaseStatus(): Promise<SupabaseStatusResult> {
+  const response = await fetch(`${API_BASE}/api/supabase-status`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
 export async function setGeminiApiKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
   const response = await fetch(`${API_BASE}/api/gemini-api-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: apiKey }),
   })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json()
+  let data: { ok?: boolean; message?: string } = {}
+  try {
+    data = await response.json()
+  } catch {
+    /* ignore */
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: data.message || `فشل الطلب (${response.status})`,
+    }
+  }
+  return { ok: data.ok ?? true, message: data.message || 'تم الحفظ' }
 }
 
 export interface BatchRecord extends FormData {
