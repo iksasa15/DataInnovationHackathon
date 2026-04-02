@@ -34,16 +34,16 @@ jobs:
         env:
           # مسار مشروع GitHub Pages: https://USER.github.io/REPO/
           VITE_BASE_PATH: /DataInnovationHackathon/
+          # Hash router + 404.html يعيد توجيه /REPO/analysis → /REPO/#/analysis (إصلاح 404 على Pages)
+          VITE_GH_PAGES: 'true'
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           npm ci
           # build-only يتخطى vue-tsc — npm run build يفشل أحياناً ويمنع النشر فيبقى README كصفحة افتراضية
           npm run build-only
 
-      - name: SPA fallback + disable Jekyll
-        run: |
-          cp DataHackathon/dist/index.html DataHackathon/dist/404.html
-          touch DataHackathon/dist/.nojekyll
+      - name: Disable Jekyll on Pages
+        run: touch DataHackathon/dist/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
         with:

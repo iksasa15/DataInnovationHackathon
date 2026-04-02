@@ -3,6 +3,8 @@
 **[افتح التطبيق — الصفحة الرئيسية (GitHub Pages)](https://iksasa15.github.io/DataInnovationHackathon/)**
 
 > إذا ظهر **نص README** بدل الواجهة: **Settings → Pages → Build and deployment → Source: GitHub Actions** (ليس «Deploy from branch»)، ثم ادفع إلى `main` أو نفّذ workflow **Deploy frontend to GitHub Pages** يدوياً من تبويب Actions.
+>
+> على GitHub Pages تُبنى الواجهة بـ **Hash Router** (`…/DataInnovationHackathon/#/analysis`) حتى لا يظهر خطأ 404 عند فتح مسار مثل `/analysis` مباشرة؛ الرابط القديم يُحوَّل تلقائياً عبر `404.html`.
 
 نموذج أولي (POC) لمسار **المعالجة الذكية للبيانات** في هاكثون الابتكار في البيانات (الطريق إلى الرياض 2026).  
 يربط واجهات **نماذج لغوية كبيرة (LLM)** بمنظومة جمع البيانات: **استمارة حية** و**رفع ملفات Excel/CSV**، مع مخرجات موحّدة تشمل **درجة ثقة** و**حالة** (valid / warning / error) و**أخطاء مرتبطة بالحقول** و**اقتراحات**.
