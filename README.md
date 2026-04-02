@@ -5,6 +5,7 @@
 
 | العنصر | الرابط |
 |--------|--------|
+| **المستودع (GitHub)** | [iksasa15/DataInnovationHackathon](https://github.com/iksasa15/DataInnovationHackathon) — استنساخ: `https://github.com/iksasa15/DataInnovationHackathon.git` |
 | **الواجهة المنشورة (GitHub Pages)** | [https://iksasa15.github.io/DataInnovationHackathon/#/](https://iksasa15.github.io/DataInnovationHackathon/#/) |
 | **الاستمارة الحية** | […/#/survey](https://iksasa15.github.io/DataInnovationHackathon/#/survey) |
 | **تحليل Excel / CSV** | […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) |
@@ -45,7 +46,7 @@
 | ليس Excel وحده | الواجهة تدعم **الاثنين معاً** |
 | ربط LLM بمنظومة الجمع | FastAPI + برومبتات + Gemini (ومسارات بديلة) + طبقة قواعد hybrid |
 | تسليم: README + نشر + فيديو | هذا الملف + جدول الروابط أعلاه + قسم [الفيديو](#video) |
-| مستودع خاص وإضافة المحكمين | يجب أن يبقى المستودع **Private** وإضافة حسابات المحكمين في GitHub **قبل التقييم** |
+| مستودع خاص وإضافة المحكمين | حسب الدليل: **Private** ودعوة المحكمين قبل التقييم. المستودع الحالي على GitHub: [DataInnovationHackathon](https://github.com/iksasa15/DataInnovationHackathon) — عدّل الظهور (عام/خاص) حسب تعليمات اللجنة. |
 
 **معيار التقييم الجوهري (الدليل):** القدرة على اكتشاف التناقضات **في أثناء الإدخال**. في الاستمارة يظهر التحقق بعد ملء حقول كافية وتوقف الإدخال لحظات (لتقليل طلبات الـ API)، مع عرض **درجة ثقة** و**حالة** و**ملاحظات** فور وصول الرد.
 
@@ -89,7 +90,7 @@
 ### 1) استنساخ
 
 ```bash
-git clone <رابط-المستودع-الخاص>.git
+git clone https://github.com/iksasa15/DataInnovationHackathon.git
 cd DataInnovationHackathon
 ```
 
