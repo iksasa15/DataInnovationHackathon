@@ -43,17 +43,9 @@ async function runDiagnostics() {
     <section class="hero">
       <div class="hero-bg"></div>
       <div class="hero-content">
-        <span class="hero-badge">هاكاثون الابتكار في البيانات</span>
-        <h1 class="hero-title">
-          <span class="hero-title-main">Data</span><span class="hero-title-accent">Hackathon</span>
-        </h1>
-        <p class="hero-desc">
-          منصة تجمع المبتكرين والمطورين لبناء حلول ذكية تعتمد على البيانات.
-          انضم إلينا واصنع الفرق.
-        </p>
+        <h1 class="hero-title">عين</h1>
         <div class="hero-actions">
           <RouterLink to="/survey" class="btn btn-primary">جرّب الاستبيان الآن</RouterLink>
-          <a href="#features" class="btn btn-outline">المميزات</a>
           <button
             type="button"
             class="btn btn-diagnostics"
@@ -107,39 +99,8 @@ async function runDiagnostics() {
       </div>
     </section>
 
-    <!-- Features -->
-    <section id="features" class="features">
-      <h2 class="section-title">لماذا DataHackathon؟</h2>
-      <div class="features-grid">
-        <article class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>تحليل البيانات</h3>
-          <p>أدوات وبيانات مفتوحة لتحويل الأفكار إلى رؤى قابلة للتطبيق.</p>
-        </article>
-        <article class="feature-card">
-          <div class="feature-icon">🤝</div>
-          <h3>فريق وشركاء</h3>
-          <p>تعاون مع خبراء من قطاعات مختلفة وابنِ مشروعك خلال أيام.</p>
-        </article>
-        <article class="feature-card">
-          <div class="feature-icon">🏆</div>
-          <h3>جوائز ودعم</h3>
-          <p>فرصة للفوز بدعم مادي وتقدير ودعم لتحويل المشروع إلى واقع.</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="cta">
-      <div class="cta-content">
-        <h2>جاهز للمشاركة؟</h2>
-        <p>سجّل الآن وكن جزءاً من مجتمع الابتكار في البيانات.</p>
-        <RouterLink to="/about" class="btn btn-primary btn-lg">سجّل الآن</RouterLink>
-      </div>
-    </section>
-
     <footer class="home-footer">
-      <p>© {{ new Date().getFullYear() }} DataHackathon — هاكاثون الابتكار في البيانات</p>
+      <p>© {{ new Date().getFullYear() }} عين</p>
     </footer>
   </div>
 </template>
@@ -176,40 +137,13 @@ async function runDiagnostics() {
   max-width: 42rem;
 }
 
-.hero-badge {
-  display: inline-block;
-  padding: 0.35rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #0e7490;
-  background: rgba(6, 182, 212, 0.12);
-  border-radius: 9999px;
-  margin-bottom: 1.25rem;
-  letter-spacing: 0.02em;
-}
-
 .hero-title {
-  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-size: clamp(3rem, 12vw, 5rem);
   font-weight: 700;
-  line-height: 1.1;
-  margin-bottom: 1rem;
-  letter-spacing: -0.03em;
-}
-
-.hero-title-main {
-  color: var(--color-heading);
-}
-
-.hero-title-accent {
+  line-height: 1.15;
+  margin: 0 0 2rem;
+  letter-spacing: 0.02em;
   color: #0e7490;
-}
-
-.hero-desc {
-  font-size: 1.125rem;
-  color: var(--color-text);
-  opacity: 0.9;
-  line-height: 1.65;
-  margin-bottom: 2rem;
 }
 
 .hero-actions {
@@ -395,89 +329,6 @@ async function runDiagnostics() {
   font-size: 0.82rem;
 }
 
-.btn-lg {
-  padding: 0.9rem 1.75rem;
-  font-size: 1.05rem;
-}
-
-/* Features */
-.features {
-  padding: 4rem 1.5rem;
-  max-width: 80rem;
-  margin: 0 auto;
-}
-
-.section-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 2.5rem;
-  color: var(--color-heading);
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.5rem;
-}
-
-.feature-card {
-  padding: 1.75rem;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.feature-card:hover {
-  border-color: rgba(14, 165, 233, 0.3);
-  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.08);
-}
-
-.feature-icon {
-  font-size: 2rem;
-  margin-bottom: 1rem;
-}
-
-.feature-card h3 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--color-heading);
-}
-
-.feature-card p {
-  font-size: 0.95rem;
-  color: var(--color-text);
-  opacity: 0.85;
-  line-height: 1.55;
-}
-
-/* CTA */
-.cta {
-  padding: 4rem 1.5rem;
-  background: linear-gradient(180deg, rgba(6, 182, 212, 0.06) 0%, transparent 100%);
-}
-
-.cta-content {
-  max-width: 36rem;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.cta h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: var(--color-heading);
-}
-
-.cta p {
-  margin-bottom: 1.5rem;
-  color: var(--color-text);
-  opacity: 0.9;
-}
-
 /* Footer */
 .home-footer {
   padding: 1.5rem;
@@ -489,12 +340,8 @@ async function runDiagnostics() {
 }
 
 @media (prefers-color-scheme: dark) {
-  .hero-title-accent {
+  .hero-title {
     color: #22d3ee;
-  }
-  .hero-badge {
-    color: #67e8f9;
-    background: rgba(34, 211, 238, 0.15);
   }
   .btn-primary {
     background: #0891b2;

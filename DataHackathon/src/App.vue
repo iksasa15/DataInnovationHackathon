@@ -73,9 +73,7 @@ async function saveGeminiKey() {
 <template>
   <div class="app">
     <header class="app-header">
-      <RouterLink to="/" class="logo">
-        <span class="logo-data">Data</span><span class="logo-hackathon">Hackathon</span>
-      </RouterLink>
+      <RouterLink to="/" class="logo">عين</RouterLink>
       <nav class="nav">
         <RouterLink to="/">الرئيسية</RouterLink>
         <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
@@ -149,18 +147,11 @@ async function saveGeminiKey() {
   font-size: 1.25rem;
   font-weight: 700;
   text-decoration: none;
-  letter-spacing: -0.02em;
-}
-
-.logo-data {
-  color: var(--color-heading);
-}
-
-.logo-hackathon {
+  letter-spacing: 0.02em;
   color: #0e7490;
 }
 
-.logo:hover .logo-hackathon {
+.logo:hover {
   text-decoration: underline;
 }
 
@@ -420,7 +411,7 @@ async function saveGeminiKey() {
     background: #042f2e;
     border-color: #0d9488;
   }
-  .logo-hackathon {
+  .logo {
     color: #22d3ee;
   }
   .nav a:hover,
