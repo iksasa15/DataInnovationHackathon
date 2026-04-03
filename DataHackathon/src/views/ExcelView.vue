@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
 import { columnQuestionLabel, loadLfsMetadataMap } from '../utils/lfsMetadata'
+import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
 import { validateBatchDynamic } from '../services/api'
 import type { BatchResult, ValidationError } from '../services/api'
 
@@ -279,7 +280,9 @@ function processFile(file: File) {
     const ws = wb.Sheets[firstSheetName]
     if (!ws) return
 
-    const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+    const rawRows: Record<string, any>[] = normalizeRowsNullLike(
+      XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[],
+    )
     if (!rawRows.length || !rawRows[0]) return
 
     const { columns: visibleCols, rows: dataRows } = stripTechnicalDescColumns(rawRows)

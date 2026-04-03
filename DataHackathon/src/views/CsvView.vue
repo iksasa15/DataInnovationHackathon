@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
 import { validateBatchDynamic } from '../services/api'
+import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
 import type { BatchResult, ValidationError } from '../services/api'
 
 interface ValidationResult {
@@ -113,7 +114,9 @@ function processFile(file: File) {
       }
       const ws = wb.Sheets[firstSheetName]
       if (!ws) return
-      const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      const rawRows: Record<string, any>[] = normalizeRowsNullLike(
+        XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[],
+      )
       if (!rawRows.length || !rawRows[0]) {
         uploadError.value = 'الملف فارغ أو لا يحتوي على أعمدة'
         return
