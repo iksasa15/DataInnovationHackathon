@@ -48,6 +48,22 @@ const filteredRows = computed(() => {
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
+/** إجمالي عدد تنبيهات الخلايا حسب الشدة (جميع الصفوف) */
+const severityIssueTotals = computed(() => {
+  let high = 0
+  let medium = 0
+  let low = 0
+  for (const r of rows.value) {
+    for (const e of r.validation?.errors ?? []) {
+      const s = String(e.severity ?? 'medium').toLowerCase()
+      if (s === 'high') high++
+      else if (s === 'low') low++
+      else medium++
+    }
+  }
+  return { high, medium, low }
+})
+
 async function loadInsightsReport() {
   const br = batchResult.value
   if (!br?.stats || !br.results?.length) {
@@ -470,6 +486,26 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         </div>
       </div>
 
+      <div
+        v-if="batchResult"
+        class="severity-cards"
+        role="group"
+        aria-label="عدد التحذيرات حسب شدة الخلية"
+      >
+        <div class="severity-card severity-card--high">
+          <span class="severity-card-num">{{ severityIssueTotals.high }}</span>
+          <span class="severity-card-label">تحذيرات حرجة</span>
+        </div>
+        <div class="severity-card severity-card--medium">
+          <span class="severity-card-num">{{ severityIssueTotals.medium }}</span>
+          <span class="severity-card-label">متوسطة</span>
+        </div>
+        <div class="severity-card severity-card--low">
+          <span class="severity-card-num">{{ severityIssueTotals.low }}</span>
+          <span class="severity-card-label">منخفضة</span>
+        </div>
+      </div>
+
       <section v-if="batchResult" class="batch-insights-section" aria-label="تقرير نهاية التحليل">
         <div v-if="insightsLoading" class="batch-insights-loading">
           <span class="btn-spinner batch-insights-spinner" aria-hidden="true"></span>
@@ -816,6 +852,61 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .stat-error .stat-num { color: #ef4444; }
 .stat-warning .stat-num { color: #f59e0b; }
 .stat-valid .stat-num { color: #10b981; }
+
+.severity-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 520px) {
+  .severity-cards {
+    grid-template-columns: 1fr;
+  }
+}
+.severity-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+}
+.severity-card-num {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.severity-card-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.88;
+}
+.severity-card--high {
+  border-color: rgba(239, 68, 68, 0.42);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.09), var(--color-background-soft));
+}
+.severity-card--high .severity-card-num {
+  color: #ef4444;
+}
+.severity-card--medium {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.09), var(--color-background-soft));
+}
+.severity-card--medium .severity-card-num {
+  color: #d97706;
+}
+.severity-card--low {
+  border-color: rgba(107, 114, 128, 0.4);
+  background: linear-gradient(180deg, rgba(107, 114, 128, 0.1), var(--color-background-soft));
+}
+.severity-card--low .severity-card-num {
+  color: #4b5563;
+}
 
 .batch-insights-section { margin-bottom: 1rem; }
 .batch-insights-loading {
