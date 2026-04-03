@@ -11,6 +11,7 @@ import {
 } from '../utils/lfsTableColumnHeader'
 import { validationErrorMatchesKind } from '../utils/lfsIssueKind'
 import type { IssueKindClass } from '../utils/lfsIssueKind'
+import { buildFilteredIssueCards } from '../utils/lfsIssueCards'
 import FieldRuleDetailModal from '../components/FieldRuleDetailModal.vue'
 import { fetchBatchInsightsReport, fetchLfsBusinessRulesCatalog, validateBatchDynamic } from '../services/api'
 import type {
@@ -149,6 +150,16 @@ const issueKindFilterCounts = computed(() => {
 
 const filterToolbarActive = computed(
   () => severityFilterBtn.value !== 'all' || issueKindFilterBtn.value !== 'all',
+)
+
+/** بطاقات التنبيهات المطابقة للفلتر (نفس منطق جدول الصفوف المصفّى) */
+const filteredIssueCards = computed(() =>
+  buildFilteredIssueCards(
+    rows.value,
+    severityFilterBtn.value,
+    issueKindFilterBtn.value,
+    columnHeaderLabel,
+  ),
 )
 
 const stats = computed(() => batchResult.value?.stats ?? null)
@@ -979,6 +990,32 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         </p>
       </div>
 
+      <!-- بطاقات التنبيهات حسب الفلتر -->
+      <section v-if="batchResult" class="issue-cards-section" aria-label="قائمة التنبيهات">
+        <h3 class="issue-cards-title">التنبيهات ({{ filteredIssueCards.length }})</h3>
+        <p v-if="!filteredIssueCards.length" class="issue-cards-empty">لا توجد تنبيهات تطابق الفلتر الحالي.</p>
+        <ul v-else class="issue-cards-list">
+          <li
+            v-for="(c, ci) in filteredIssueCards"
+            :key="'ic' + ci + '-' + c.rowDisplay + '-' + c.fieldKey"
+            class="issue-card"
+            :class="'issue-card--' + c.severityKey"
+          >
+            <div class="issue-card-head">
+              <span class="issue-card-sev-badge">{{ c.severityLabel }}</span>
+              <span class="issue-card-row-num">الصف {{ c.rowDisplay }}</span>
+            </div>
+            <h4 class="issue-card-headline">{{ c.title }}</h4>
+            <p class="issue-card-field-line">العمود الرئيسي: {{ c.fieldLabel }}</p>
+            <p v-if="c.confidence != null" class="issue-card-confidence">
+              الثقة: {{ Math.round(c.confidence) }}٪
+            </p>
+            <span class="issue-card-kind-pill">{{ c.kindLabel }}</span>
+            <p v-if="c.body && c.body.trim() !== c.title.trim()" class="issue-card-detail">{{ c.body }}</p>
+          </li>
+        </ul>
+      </section>
+
       <!-- Legend -->
       <div v-if="batchResult" class="legend">
         <span class="legend-item"><span class="legend-dot dot-high"></span> خطأ حرج</span>
@@ -1745,6 +1782,128 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   font-size: 0.78rem;
   color: var(--color-text);
   opacity: 0.85;
+}
+
+/* بطاقات التنبيهات */
+.issue-cards-section {
+  margin-bottom: 1rem;
+}
+.issue-cards-title {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+.issue-cards-empty {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  color: var(--color-text);
+  opacity: 0.75;
+  background: var(--color-background-soft);
+  border: 1px dashed var(--color-border);
+  border-radius: 0.5rem;
+}
+.issue-cards-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.issue-card {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  border-right: 4px solid var(--color-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.issue-card--high {
+  border-right-color: #ef4444;
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.65), var(--color-background));
+}
+.issue-card--medium {
+  border-right-color: #f59e0b;
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.7), var(--color-background));
+}
+.issue-card--low {
+  border-right-color: #6b7280;
+  background: linear-gradient(135deg, rgba(249, 250, 251, 0.9), var(--color-background));
+}
+.issue-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.issue-card-sev-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: none;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.35rem;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--color-heading);
+}
+.issue-card--high .issue-card-sev-badge {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}
+.issue-card--medium .issue-card-sev-badge {
+  background: rgba(245, 158, 11, 0.18);
+  color: #b45309;
+}
+.issue-card--low .issue-card-sev-badge {
+  background: rgba(107, 114, 128, 0.15);
+  color: #374151;
+}
+.issue-card-row-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+.issue-card-headline {
+  margin: 0 0 0.45rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-heading);
+}
+.issue-card-field-line {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  opacity: 0.88;
+}
+.issue-card-confidence {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0e7490;
+}
+.issue-card-kind-pill {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 0.35rem;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.issue-card-detail {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Legend */

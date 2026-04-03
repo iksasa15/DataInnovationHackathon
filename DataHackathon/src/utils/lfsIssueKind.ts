@@ -27,3 +27,21 @@ export function classifyValidationErrorKind(e: ValidationError): IssueKindClass 
 export function validationErrorMatchesKind(e: ValidationError, kind: IssueKindClass): boolean {
   return classifyValidationErrorKind(e) === kind
 }
+
+export function severityLabelAr(sev: string): string {
+  const s = String(sev ?? 'medium').toLowerCase()
+  if (s === 'high') return 'عالية'
+  if (s === 'low') return 'منخفضة'
+  return 'متوسطة'
+}
+
+export function issueKindLabelAr(kind: IssueKindClass): string {
+  switch (kind) {
+    case 'semantic':
+      return 'تناقض دلالي'
+    case 'logical':
+      return 'تعارض منطقي'
+    case 'input':
+      return 'احتمال خطأ إدخال'
+  }
+}
