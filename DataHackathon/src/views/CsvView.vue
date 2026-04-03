@@ -2,9 +2,9 @@
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
-import { validateBatchDynamic } from '../services/api'
+import { fetchBatchInsightsReport, validateBatchDynamic } from '../services/api'
 import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
-import type { BatchResult, ValidationError } from '../services/api'
+import type { BatchInsightsResponse, BatchResult, ValidationError } from '../services/api'
 
 interface ValidationResult {
   confidence_score: number
@@ -27,6 +27,9 @@ const fileName = ref('')
 const columns = ref<string[]>([])
 const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
+const insightsReport = ref<BatchInsightsResponse | null>(null)
+const insightsLoading = ref(false)
+const insightsError = ref<string | null>(null)
 const filter = ref<'all' | 'error' | 'warning' | 'valid'>('all')
 const uploadError = ref('')
 const detailsModalRow = ref<number | null>(null)
@@ -37,6 +40,25 @@ const filteredRows = computed(() => {
 })
 
 const stats = computed(() => batchResult.value?.stats ?? null)
+
+async function loadInsightsReport() {
+  const br = batchResult.value
+  if (!br?.stats || !br.results?.length) {
+    insightsLoading.value = false
+    return
+  }
+  insightsLoading.value = true
+  insightsError.value = null
+  try {
+    insightsReport.value = await fetchBatchInsightsReport({ stats: br.stats, results: br.results })
+  } catch (e) {
+    insightsError.value =
+      e instanceof Error ? e.message : 'تعذّر جلب تقرير نهاية التحليل. تحقق من الاتصال بالخادم.'
+    insightsReport.value = null
+  } finally {
+    insightsLoading.value = false
+  }
+}
 
 /** خريطة تفاصيل كل صف (ملخص مشاكل + اقتراحات) */
 const rowDetailsMap = computed(() => {
@@ -129,6 +151,8 @@ function processFile(file: File) {
         validation: null,
       }))
       batchResult.value = null
+      insightsReport.value = null
+      insightsError.value = null
       filter.value = 'all'
     } catch (err) {
       uploadError.value = 'تعذر قراءة الملف. تأكد أنه ملف CSV صالح.'
@@ -140,6 +164,8 @@ function processFile(file: File) {
 async function analyzeAll() {
   if (!rows.value.length || !columns.value.length) return
   isProcessing.value = true
+  insightsReport.value = null
+  insightsError.value = null
   try {
     const payload = {
       columns: columns.value,
@@ -153,6 +179,7 @@ async function analyzeAll() {
       editableData: r.editableData ?? { ...r.originalData },
       validation: resultMap.get(r.row_index) ?? null,
     }))
+    await loadInsightsReport()
   } finally {
     isProcessing.value = false
   }
@@ -163,6 +190,8 @@ function resetFile() {
   columns.value = []
   rows.value = []
   batchResult.value = null
+  insightsReport.value = null
+  insightsError.value = null
   filter.value = 'all'
   uploadError.value = ''
 }
@@ -377,6 +406,69 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           <span class="stat-label">متوسط الثقة</span>
         </div>
       </div>
+
+      <section v-if="batchResult" class="batch-insights-section" aria-label="تقرير نهاية التحليل">
+        <div v-if="insightsLoading" class="batch-insights-loading">
+          <span class="btn-spinner batch-insights-spinner" aria-hidden="true"></span>
+          جارٍ إعداد تقرير نهاية التحليل…
+        </div>
+        <div v-else-if="insightsError" class="batch-insights-error" role="alert">
+          {{ insightsError }}
+        </div>
+        <article v-else-if="insightsReport?.report" class="batch-insights-card">
+          <header class="batch-insights-head">
+            <h3 class="batch-insights-title">تقرير نهاية التحليل</h3>
+            <span v-if="insightsReport.provider === 'gemini'" class="tag-gemini">Gemini</span>
+            <span v-else class="tag-insights-fallback">تحليل إحصائي</span>
+          </header>
+          <p v-if="insightsReport.message" class="batch-insights-note">{{ insightsReport.message }}</p>
+          <p class="batch-insights-summary">{{ insightsReport.report.summary_ar }}</p>
+          <div class="batch-insights-grid">
+            <div class="batch-insights-block">
+              <h4 class="batch-insights-h4">الأخطاء الأكثر تكراراً</h4>
+              <p class="batch-insights-body">{{ insightsReport.report.most_repeated_insights_ar }}</p>
+            </div>
+            <div class="batch-insights-block">
+              <h4 class="batch-insights-h4">أخطاء نادرة أو معزولة</h4>
+              <p class="batch-insights-body">{{ insightsReport.report.rare_and_isolated_ar }}</p>
+            </div>
+            <div class="batch-insights-block">
+              <h4 class="batch-insights-h4">حقول بأقل تكرار للمشاكل</h4>
+              <p class="batch-insights-body">{{ insightsReport.report.least_problematic_fields_ar }}</p>
+            </div>
+          </div>
+          <div v-if="insightsReport.report.priority_fields_ar?.length" class="batch-insights-priority">
+            <span class="batch-insights-priority-label">أولوية المراجعة:</span>
+            <span v-for="(pf, i) in insightsReport.report.priority_fields_ar" :key="'pf' + i" class="batch-insights-chip">{{
+              pf
+            }}</span>
+          </div>
+          <ul v-if="insightsReport.report.recommendations_ar?.length" class="batch-insights-recs">
+            <li v-for="(rec, ri) in insightsReport.report.recommendations_ar" :key="'rec' + ri">
+              {{ rec }}
+            </li>
+          </ul>
+          <div v-if="insightsReport.aggregates?.most_repeated?.length" class="batch-insights-table-wrap">
+            <span class="batch-insights-table-caption">أعلى الأنواع تكراراً</span>
+            <table class="batch-insights-table">
+              <thead>
+                <tr>
+                  <th>الحقل</th>
+                  <th>التكرار</th>
+                  <th>الرسالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, ti) in insightsReport.aggregates.most_repeated.slice(0, 12)" :key="'fr' + ti">
+                  <td>{{ row.field }}</td>
+                  <td>{{ row.count }}</td>
+                  <td class="batch-insights-msg-cell">{{ row.message }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
 
       <div v-if="batchResult?.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
         <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
@@ -627,6 +719,104 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .stat-error .stat-num { color: #ef4444; }
 .stat-warning .stat-num { color: #f59e0b; }
 .stat-valid .stat-num { color: #10b981; }
+
+.batch-insights-section { margin-bottom: 1rem; }
+.batch-insights-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-background-soft);
+  border: 1px dashed var(--color-border);
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+.batch-insights-spinner { width: 1rem; height: 1rem; border-width: 2px; }
+.batch-insights-error {
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 0.875rem;
+}
+.batch-insights-card {
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 0.65rem;
+}
+.batch-insights-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+.batch-insights-title { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--color-heading); }
+.tag-insights-fallback {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.35rem;
+  background: rgba(100, 116, 139, 0.15);
+}
+.tag-gemini {
+  font-size: 0.72rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+.batch-insights-note { margin: 0 0 0.5rem; font-size: 0.78rem; opacity: 0.85; }
+.batch-insights-summary { margin: 0 0 0.85rem; font-size: 0.92rem; line-height: 1.55; }
+.batch-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+.batch-insights-h4 { margin: 0 0 0.35rem; font-size: 0.82rem; font-weight: 700; color: var(--color-heading); }
+.batch-insights-body { margin: 0; font-size: 0.82rem; line-height: 1.5; opacity: 0.92; }
+.batch-insights-priority {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.82rem;
+}
+.batch-insights-priority-label { font-weight: 600; color: var(--color-heading); }
+.batch-insights-chip {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.batch-insights-recs {
+  margin: 0 0 0.85rem;
+  padding-right: 1.1rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.batch-insights-table-caption {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--color-heading);
+}
+.batch-insights-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.batch-insights-table th,
+.batch-insights-table td {
+  border: 1px solid var(--color-border);
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+  vertical-align: top;
+}
+.batch-insights-table th { background: var(--color-background-soft); font-weight: 600; }
+.batch-insights-msg-cell { max-width: 28rem; word-break: break-word; }
 
 .provider-notice {
   padding: 0.65rem 1rem;

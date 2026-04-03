@@ -3,6 +3,7 @@ import os
 import asyncio
 import difflib
 import time
+from collections import Counter
 from typing import Any, Optional
 
 from openai import AsyncOpenAI
@@ -922,3 +923,224 @@ def _mock_validate(data: dict) -> dict:
         "suggestions": suggestions,
         "summary": summary,
     }
+
+
+def aggregate_dynamic_batch_errors(results: list[dict]) -> dict[str, Any]:
+    """تجميع أخطاء الدفعة: تكرار (حقل + رسالة)، حقول بأكثر/أقل إشارات."""
+    pair_counts: Counter[tuple[str, str]] = Counter()
+    severity_by_pair: dict[tuple[str, str], str] = {}
+
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        for e in r.get("errors") or []:
+            if not isinstance(e, dict):
+                continue
+            field = str(e.get("field", "") or "?").strip() or "?"
+            msg = str(e.get("message", "") or "").strip()
+            if len(msg) > 1500:
+                msg = msg[:1500] + "…"
+            key = (field, msg)
+            pair_counts[key] += 1
+            sev = str(e.get("severity", "medium")).lower()
+            if key not in severity_by_pair or sev == "high":
+                severity_by_pair[key] = sev
+
+    most_repeated = [
+        {
+            "field": k[0],
+            "message": k[1],
+            "count": c,
+            "severity": severity_by_pair.get(k, "medium"),
+        }
+        for k, c in pair_counts.most_common(40)
+    ]
+    singleton_keys = [k for k, c in pair_counts.items() if c == 1]
+    rare_singletons_sample = [{"field": k[0], "message": k[1], "count": 1} for k in singleton_keys[:45]]
+
+    field_counts: Counter[str] = Counter()
+    for (f, _), c in pair_counts.items():
+        field_counts[f] += c
+
+    fields_desc = [{"field": f, "error_mentions": n} for f, n in field_counts.most_common(30)]
+    fields_asc = sorted(field_counts.items(), key=lambda x: (x[1], x[0]))
+    fields_least = [{"field": f, "error_mentions": n} for f, n in fields_asc[:25]]
+
+    return {
+        "total_error_occurrences": int(sum(pair_counts.values())),
+        "unique_error_types": len(pair_counts),
+        "singleton_count": len(singleton_keys),
+        "most_repeated": most_repeated,
+        "rare_singletons_sample": rare_singletons_sample,
+        "fields_by_errors_desc": fields_desc,
+        "fields_by_errors_asc": fields_least,
+    }
+
+
+def _normalize_insight_report(raw: dict[str, Any]) -> dict[str, Any]:
+    rec = raw.get("recommendations_ar")
+    if not isinstance(rec, list):
+        rec = []
+    pri = raw.get("priority_fields_ar")
+    if not isinstance(pri, list):
+        pri = []
+    return {
+        "summary_ar": str(raw.get("summary_ar", "") or "").strip(),
+        "most_repeated_insights_ar": str(raw.get("most_repeated_insights_ar", "") or "").strip(),
+        "rare_and_isolated_ar": str(raw.get("rare_and_isolated_ar", "") or "").strip(),
+        "least_problematic_fields_ar": str(raw.get("least_problematic_fields_ar", "") or "").strip(),
+        "recommendations_ar": [str(x).strip() for x in rec if str(x).strip()],
+        "priority_fields_ar": [str(x).strip() for x in pri if str(x).strip()],
+    }
+
+
+def _fallback_insights_report_ar(stats: dict[str, Any], agg: dict[str, Any]) -> dict[str, Any]:
+    """تقرير عربي من الإحصاءات فقط (بدون LLM)."""
+    st = stats or {}
+    total = int(st.get("total", 0) or 0)
+    err_rows = int(st.get("errors", 0) or 0)
+    warn_rows = int(st.get("warnings", 0) or 0)
+    valid_rows = int(st.get("valid", 0) or 0)
+    avg_c = int(st.get("avg_confidence", 0) or 0)
+
+    head = (
+        f"من أصل {total} سجلًا: صفوف بخطأ {err_rows}، تحذيرات {warn_rows}، سليمة {valid_rows}، "
+        f"ومتوسط درجة الثقة {avg_c}%."
+    )
+
+    if agg.get("total_error_occurrences", 0) == 0:
+        return {
+            "summary_ar": head + " لم تُسجَّل أخطاء على مستوى الحقول في تفاصيل الصفوف.",
+            "most_repeated_insights_ar": "لا توجد أنماط أخطاء متكررة — إما عدم وجود أخطاء حقلية أو أن التحليل لم يُرجع تفاصيل.",
+            "rare_and_isolated_ar": "لا توجد حالات معزولة لأنها غير موجودة في التفاصيل.",
+            "least_problematic_fields_ar": "لا يمكن ترتيب الحقول دون أخطاء مرصودة في التفاصيل.",
+            "recommendations_ar": [
+                "إن كان التحليل بدون نموذج لغوي، جرّب التحليل بـ Gemini لاكتشاف تعارضات أدق.",
+                "راجع عينة عشوائية من السجلات يدويًا للتحقق من جودة الإدخال.",
+            ],
+            "priority_fields_ar": [],
+        }
+
+    top = agg.get("most_repeated") or []
+    top_bits = []
+    for t in top[:8]:
+        if not isinstance(t, dict):
+            continue
+        f, m, c = t.get("field"), t.get("message"), t.get("count")
+        short_m = (m or "")[:140] + ("…" if len(str(m or "")) > 140 else "")
+        top_bits.append(f"«{f}» ({c}×): {short_m}")
+    most_txt = " ".join(top_bits) if top_bits else "لا بيانات."
+
+    rare_n = int(agg.get("singleton_count", 0) or 0)
+    rare_txt = (
+        f"وُجد {rare_n} نوع خطأ ظهر مرة واحدة فقط (رسائل معزولة)، "
+        "ما قد يشير إلى أخطاء إدخال فردية أو حالات استثنائية."
+        if rare_n
+        else "لا توجد أخطاء «مرة واحدة» ضمن التفاصيل المعروضة."
+    )
+
+    least_fields = agg.get("fields_by_errors_asc") or []
+    least_bits = [f"«{x.get('field')}» ({x.get('error_mentions')} إشارة)" for x in least_fields[:8] if isinstance(x, dict)]
+    least_txt = (
+        "أقل الحقول تكرارًا للمشاكل (ضمن الحقول التي وُجد لها خطأ): " + "، ".join(least_bits)
+        if least_bits
+        else "لا يوجد ترتيب واضح."
+    )
+
+    prio = [str(x.get("field")) for x in (agg.get("fields_by_errors_desc") or [])[:6] if isinstance(x, dict)]
+
+    return {
+        "summary_ar": head + f" إجمالي ظهورات الأخطاء في الحقول: {agg.get('total_error_occurrences')}، وأنواع مميزة: {agg.get('unique_error_types')}.",
+        "most_repeated_insights_ar": most_txt,
+        "rare_and_isolated_ar": rare_txt,
+        "least_problematic_fields_ar": least_txt,
+        "recommendations_ar": [
+            "ركّز تصحيح الدفعة على الأنماط الأعلى تكرارًا أولاً لتقليل العمل اليدوي.",
+            "للرسائل المرة الواحدة: راجع السجل المحدد أو اعتبرها شذوذًا.",
+            "وحّد تعليمات الإدخال للحقول الأكثر إشكالية في النموذج.",
+        ],
+        "priority_fields_ar": prio,
+    }
+
+
+async def _call_gemini_insights_prompt(prompt: str) -> dict[str, Any]:
+    api_key = get_gemini_api_key()
+    genai.configure(api_key=api_key)
+
+    last_exc: Optional[Exception] = None
+    for i, model_name in enumerate(_gemini_models()):
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                    max_output_tokens=8192,
+                ),
+            )
+            response = await asyncio.to_thread(model.generate_content, prompt)
+            content = (response.text or "{}").strip()
+            return json.loads(content)
+        except Exception as exc:
+            last_exc = exc
+            err = str(exc).lower()
+            is_quota = "429" in err or "quota" in err or "rate" in err
+            is_not_found = "404" in err or "not found" in err
+            if is_not_found:
+                continue
+            if is_quota and i < len(_gemini_models()) - 1:
+                await asyncio.sleep(1)
+                continue
+            break
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Gemini insights: no model attempted")
+
+
+async def generate_batch_insights_report(stats: dict[str, Any], results: list[dict]) -> dict[str, Any]:
+    """
+    تقرير نهاية التحليل: تكرار الأخطاء + تحليل عربي (Gemini أو احتياطي إحصائي).
+    """
+    agg = aggregate_dynamic_batch_errors(results)
+
+    if not get_gemini_api_key():
+        rep = _fallback_insights_report_ar(stats, agg)
+        return {
+            "ok": True,
+            "provider": "fallback",
+            "message": "لا يوجد مفتاح Gemini — عُرض تقرير إحصائي.",
+            "report": rep,
+            "aggregates": agg,
+        }
+
+    prompt = (
+        "أنت محلل جودة بيانات استبيانات. أجب بـ JSON فقط دون أي نص خارج JSON.\n\n"
+        "الإحصائيات على مستوى الصفوف:\n"
+        f"{json.dumps(stats, ensure_ascii=False)}\n\n"
+        "تجميع أخطاء الحقول (كل ظهور لـ (حقل + رسالة) يُعدّ مرة):\n"
+        f"{json.dumps(agg, ensure_ascii=False, indent=2)}\n\n"
+        "المطلوب — كائن JSON بالمفاتيح التالية بالعربية:\n"
+        "summary_ar: ملخص تنفيذي في جملتين إلى أربع.\n"
+        "most_repeated_insights_ar: فقرة تحليلية عن أشد الأخطاء تكراراً وماذا تعني لجودة النموذج.\n"
+        "rare_and_isolated_ar: فقرة عن الأخطاء النادرة أو المرة الواحدة وما إن كانت مقلقة.\n"
+        "least_problematic_fields_ar: فقرة عن الحقول الأقل تكراراً للمشاكل (من الحقول التي وُجد لها خطأ).\n"
+        "recommendations_ar: مصفوفة نصوص، 5 إلى 10 توصيات عملية للمُدخل أو لمصمم الاستبيان.\n"
+        "priority_fields_ar: مصفوفة أسماء حقول تستحق الأولوية في المراجعة.\n"
+    )
+
+    try:
+        raw = await _call_gemini_insights_prompt(prompt)
+        if not isinstance(raw, dict):
+            raw = {}
+        rep = _normalize_insight_report(raw)
+        return {"ok": True, "provider": "gemini", "report": rep, "aggregates": agg}
+    except Exception as exc:
+        rep = _fallback_insights_report_ar(stats, agg)
+        return {
+            "ok": True,
+            "provider": "fallback",
+            "message": f"تعذّر توليد تقرير Gemini — عُرض تقرير إحصائي. ({str(exc)[:180]})",
+            "report": rep,
+            "aggregates": agg,
+        }

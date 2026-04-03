@@ -260,6 +260,51 @@ export interface BatchResult {
   gemini_unavailable?: boolean
 }
 
+/** تكرار نوع خطأ (حقل + رسالة) من الخادم */
+export interface BatchErrorFrequencyItem {
+  field: string
+  message: string
+  count: number
+  severity?: string
+}
+
+export interface BatchInsightsAggregates {
+  total_error_occurrences: number
+  unique_error_types: number
+  singleton_count: number
+  most_repeated: BatchErrorFrequencyItem[]
+}
+
+export interface BatchInsightsReport {
+  summary_ar: string
+  most_repeated_insights_ar: string
+  rare_and_isolated_ar: string
+  least_problematic_fields_ar: string
+  recommendations_ar: string[]
+  priority_fields_ar: string[]
+}
+
+export interface BatchInsightsResponse {
+  ok: boolean
+  provider: 'gemini' | 'fallback'
+  message?: string
+  report: BatchInsightsReport
+  aggregates?: BatchInsightsAggregates
+}
+
+export async function fetchBatchInsightsReport(payload: {
+  stats: BatchStats
+  results: (ValidationResult & { row_index: number })[]
+}): Promise<BatchInsightsResponse> {
+  const response = await fetch(`${API_BASE}/api/batch-insights-report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stats: payload.stats, results: payload.results }),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
 export async function validateBatch(records: BatchRecord[]): Promise<BatchResult> {
   const response = await fetch(`${API_BASE}/api/validate-batch`, {
     method: 'POST',

@@ -289,6 +289,20 @@ async def validate_batch_dynamic(payload: DynamicBatchPayload):
     )
 
 
+class BatchInsightsPayload(BaseModel):
+    """نتيجة تحليل دفعي: إحصائيات الصفوف + صفوف النتائج (لتقرير التكرار وGemini)."""
+
+    stats: Dict[str, Any]
+    results: List[Dict[str, Any]]
+
+
+@app.post("/api/batch-insights-report")
+async def batch_insights_report(payload: BatchInsightsPayload):
+    from validator import generate_batch_insights_report
+
+    return await generate_batch_insights_report(payload.stats, payload.results)
+
+
 @app.post("/api/admin/refresh-supabase-cache")
 async def refresh_supabase_cache(x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret")):
     """
