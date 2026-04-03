@@ -305,11 +305,21 @@ export interface BatchErrorFrequencyItem {
   severity?: string
 }
 
+/** ترتيب الحقول حسب إجمالي إشارات الخطأ (من الخادم) */
+export interface FieldErrorRankItem {
+  field: string
+  error_mentions: number
+}
+
 export interface BatchInsightsAggregates {
   total_error_occurrences: number
   unique_error_types: number
   singleton_count: number
   most_repeated: BatchErrorFrequencyItem[]
+  /** أكثر الحقول من حيث عدد الإشارات */
+  fields_by_errors_desc?: FieldErrorRankItem[]
+  /** أقل الحقول (ضمن الحقول التي ظهر لها خطأ على الأقل مرة) */
+  fields_by_errors_asc?: FieldErrorRankItem[]
 }
 
 export interface BatchInsightsReport {
