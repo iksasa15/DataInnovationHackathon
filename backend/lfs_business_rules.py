@@ -16,11 +16,15 @@ def _hybrid_rule_error(
     severity: str,
     message_ar: str,
     rule_id: int | None = None,
+    rule_code: str | None = None,
 ) -> dict[str, Any]:
     """
     خطأ بتنسيق الـ API؛ يضيف rule_id و message_en من LFS_Business_Rules.xlsx عند التوفر.
+    rule_code: رمز عرض للواجهة (مثل LFS_SALARY_HIGH، BR_4008) عند عدم وجود صف في جدول Excel.
     """
     err: dict[str, Any] = {"field": field, "severity": severity, "message": message_ar}
+    if rule_code:
+        err["rule_code"] = rule_code
     if rule_id is None:
         return err
     err["rule_id"] = rule_id
@@ -33,6 +37,19 @@ def _hybrid_rule_error(
         if et:
             err["rule_type"] = et
     return err
+
+
+def _num_field(row: dict[str, Any], *keys: str) -> float | None:
+    """أول قيمة رقمية من المفاتيح."""
+    for k in keys:
+        v = row.get(k)
+        if v is None or v == "":
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _age_value(row: dict[str, Any]) -> float | None:
@@ -161,8 +178,9 @@ def apply_lfs_hybrid_rules(row: dict[str, Any]) -> list[dict[str, Any]]:
                 _hybrid_rule_error(
                     "q_301_desc",
                     "medium",
-                    "عمر أقل من 21 مع بكالوريوس فأعلى — تعارض محتمل (قاعدة 2013)",
+                    f"العمر ({int(age)}) أقل من الحد الأدنى المطلوب (21) للمؤهل (بكالوريوس فأعلى) — قاعدة 2013",
                     2013,
+                    rule_code="BR_4008",
                 )
             )
         if age < 23 and _has_master_plus(edu):
@@ -196,6 +214,30 @@ def apply_lfs_hybrid_rules(row: dict[str, Any]) -> list[dict[str, Any]]:
                 "high",
                 "مستوى تعليم منخفض في q_301 مع تخصص يوحي بمستوى جامعي — تحقق من التوافق (قاعدة 2017)",
                 2017,
+            )
+        )
+
+    sal = _num_field(row, "q_602_val", "monthly_salary")
+    if sal is not None and sal >= 50000:
+        errors.append(
+            _hybrid_rule_error(
+                "q_602_val",
+                "medium",
+                f"الأجر ({sal:,.0f} ريال) مرتفع جداً (50,000 فأكثر) — يرجى التأكد من صحة المبلغ",
+                None,
+                rule_code="LFS_SALARY_HIGH",
+            )
+        )
+
+    wk_h = _num_field(row, "weekly_hours_usual", "q_501", "q_501_val")
+    if wk_h is not None and wk_h > 84:
+        errors.append(
+            _hybrid_rule_error(
+                "weekly_hours_usual",
+                "medium",
+                f"ساعات العمل الاعتيادية ({int(wk_h)} ساعة) مرتفعة جداً (84 ساعة أسبوعياً فأكثر) — يرجى التأكد",
+                None,
+                rule_code="LFS_HOURS_HIGH",
             )
         )
 

@@ -48,6 +48,15 @@ function ghPages404RedirectPlugin(publicBase: string): Plugin {
 
 export default defineConfig({
   base,
+  /** طلبات /api تُمرَّر إلى FastAPI محلياً — نفس المنشأ يتفادى CORS عند استخدام منافذ 5174/5175… */
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
+  },
   plugins: [
     trailingSlashRedirectForBase(base),
     ghPages404RedirectPlugin(base),

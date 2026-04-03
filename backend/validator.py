@@ -236,6 +236,28 @@ def _form_payload_to_hybrid_row(data: dict[str, Any]) -> dict[str, Any]:
     mar = row.get("marital_status")
     if mar is not None and str(mar).strip() != "":
         row.setdefault("marage_status", mar)
+    fr = data.get("family_relation")
+    if fr is not None and str(fr).strip() != "":
+        row.setdefault("family_relation", str(fr).strip())
+    eat = data.get("economic_activity_text")
+    if eat is not None and str(eat).strip() != "":
+        row.setdefault("q_536_desc", str(eat).strip())
+        row.setdefault("q_536", str(eat).strip())
+    wh = data.get("weekly_hours_usual")
+    if wh is not None and wh != "":
+        try:
+            row.setdefault("weekly_hours_usual", float(wh))
+        except (TypeError, ValueError):
+            pass
+    wha = data.get("weekly_hours_actual")
+    if wha is not None and wha != "":
+        try:
+            row.setdefault("weekly_hours_actual", float(wha))
+        except (TypeError, ValueError):
+            pass
+    ilo = data.get("ilo_employment_status")
+    if ilo is not None and str(ilo).strip() != "":
+        row.setdefault("ilo_employment_status", str(ilo).strip())
     return row
 
 

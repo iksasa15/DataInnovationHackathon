@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
-import ValidationPanel from '../components/ValidationPanel.vue'
+import SurveyLiveSidebar from '../components/SurveyLiveSidebar.vue'
 import { validateForm, checkHealth } from '../services/api'
-import type { FormData, ValidationResult, HealthStatus } from '../services/api'
+import type { FormData, HealthStatus, ValidationError, ValidationResult } from '../services/api'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { resolveLfsTableColumnHeader } from '../utils/lfsTableColumnHeader'
 
@@ -17,11 +17,18 @@ interface LfsLiveSurveyFields {
   nationality: string
   q_301: string
   marage_status: string
+  /** صلة القرابة برئيس الأسرة */
+  family_relation: string
   q_537_e_job: string
   /** سنة بداية العمل — تُستَخدَم لتقدير سنوات الخبرة للحارس الدلالي */
   d_ystartwk: number | null
   q_602_val: number | null
   q_534: string
+  /** عنوان النشاط الاقتصادي (نص حر) */
+  economic_activity_text: string
+  weekly_hours_usual: number | null
+  weekly_hours_actual: number | null
+  ilo_employment_status: string
   children_count: number | null
 }
 
@@ -33,10 +40,15 @@ function emptyLfsSurvey(): LfsLiveSurveyFields {
     nationality: '',
     q_301: '',
     marage_status: '',
+    family_relation: '',
     q_537_e_job: '',
     d_ystartwk: null,
     q_602_val: null,
     q_534: '',
+    economic_activity_text: '',
+    weekly_hours_usual: null,
+    weekly_hours_actual: null,
+    ilo_employment_status: '',
     children_count: null,
   }
 }
@@ -67,6 +79,11 @@ function lfsSurveyToApiPayload(s: LfsLiveSurveyFields): FormData {
     sector: s.q_534 || undefined,
     marital_status: s.marage_status || undefined,
     children_count: s.children_count ?? undefined,
+    family_relation: s.family_relation?.trim() || undefined,
+    economic_activity_text: s.economic_activity_text?.trim() || undefined,
+    weekly_hours_usual: s.weekly_hours_usual ?? undefined,
+    weekly_hours_actual: s.weekly_hours_actual ?? undefined,
+    ilo_employment_status: s.ilo_employment_status?.trim() || undefined,
   }
 }
 
@@ -99,34 +116,89 @@ function meaningfulFieldCount(s: LfsLiveSurveyFields): number {
   return n
 }
 
-const validationFieldLabels = computed(() => {
-  const m = lfsMeta.value
-  const line = (tag: string, fb: string) => {
-    const r = resolveLfsTableColumnHeader(tag, m)
-    const main = r.shortLabel !== r.technicalId ? r.shortLabel : fb
-    return r.category ? `${r.category} — ${main}` : main
+function normField(s: string): string {
+  return s.trim().toLowerCase().replace(/[_\-\s]+/g, '')
+}
+
+/**
+ * أي أخطاء تُعرض تحت حقل محدد في الاستمارة (يربط أسماء الـ API بحقول النموذج،
+ * ويُكرّر تنبيهات العمر↔المؤهل تحت العمر والمؤهل معاً).
+ */
+function fieldKeysForError(e: ValidationError): string[] {
+  const f = normField(String(e.field || ''))
+  const out = new Set<string>()
+  const add = (k: string) => out.add(k)
+
+  if (!f || f === '?') {
+    /* ignore */
+  } else if (f === 'age') {
+    add('age')
+  } else if (f.includes('q301') || f.includes('301') || f === 'education') {
+    add('q_301')
+  } else if (f.includes('q537') || f.includes('job') || f === 'jobtitle') {
+    add('q_537_e_job')
+  } else if (f.includes('q534') || f.includes('534') || f === 'sector') {
+    add('q_534')
+  } else if (f.includes('marage') || f.includes('marital')) {
+    add('marage_status')
+  } else if (f.includes('602') || f.includes('salary')) {
+    add('q_602_val')
+  } else if (f.includes('weeklyhoursusual') || f === 'weeklyhoursusual' || f.includes('q501') || f === 'weekly_hours_usual') {
+    add('weekly_hours_usual')
+  } else if (f.includes('weeklyhoursactual') || f === 'weekly_hours_actual') {
+    add('weekly_hours_actual')
+  } else if (f.includes('economic') || f.includes('q536') || f.includes('536')) {
+    add('economic_activity_text')
+  } else if (f.includes('familyrelation') || f.includes('family_relation')) {
+    add('family_relation')
+  } else if (f.includes('ilostat') || f.includes('ilo') || f.includes('employmentstatus')) {
+    add('ilo_employment_status')
+  } else if (f.includes('children')) {
+    add('children_count')
+  } else if (f.includes('ystartwk') || f.includes('experience')) {
+    add('d_ystartwk')
+  } else if (f.includes('nationality')) {
+    add('nationality')
+  } else if (f.includes('gender')) {
+    add('gender')
+  } else if (f.includes('fmid') || f === 'name') {
+    add('f_m_id')
   }
-  const q301 = line('q_301', 'أعلى مؤهل')
-  const q534 = line('q_534', 'النشاط المؤسسي')
-  return {
-    name: line('f_m_id', 'معرّف الفرد'),
-    age: line('age', 'العمر'),
-    gender: line('gender', 'جنس الفرد'),
-    nationality: line('nationality', 'الجنسية'),
-    education: q301,
-    q_301: q301,
-    q_301_desc: q301,
-    job_title: line('q_537_e_job', 'المسمى الوظيفي'),
-    years_experience: line('d_ystartwk', 'سنوات الخبرة (تقدير)'),
-    monthly_salary: line('q_602_val', 'الأجر الشهري'),
-    sector: q534,
-    q_534: q534,
-    q_534_desc: q534,
-    q_302_e_txt: line('q_302_e_txt', 'التخصص'),
-    marital_status: line('marage_status', 'الحالة الاجتماعية'),
-    children_count: 'عدد الأبناء',
+
+  const msg = (e.message || '').toLowerCase()
+  const rid = e.rule_id
+  if (
+    rid === 2011 ||
+    rid === 2012 ||
+    rid === 2013 ||
+    rid === 2015 ||
+    rid === 2016 ||
+    rid === 2017 ||
+    (msg.includes('عمر') && (msg.includes('مؤهل') || msg.includes('ثانوي') || msg.includes('دبلوم') || msg.includes('بكالوريوس') || msg.includes('ماجستير') || msg.includes('دكتور')))
+  ) {
+    add('age')
+    add('q_301')
   }
-})
+  if (rid === 2017 || (msg.includes('q_301') && msg.includes('302'))) {
+    add('q_301')
+  }
+
+  const rc = e.rule_code
+  if (rc === 'LFS_SALARY_HIGH') add('q_602_val')
+  if (rc === 'LFS_HOURS_HIGH') add('weekly_hours_usual')
+  if (rc === 'BR_4008') {
+    add('age')
+    add('q_301')
+  }
+
+  return [...out]
+}
+
+function inlineErrorsFor(fieldKey: string): ValidationError[] {
+  const vr = validationResult.value
+  if (!vr?.errors?.length) return []
+  return vr.errors.filter((e) => fieldKeysForError(e).includes(fieldKey))
+}
 
 function labelFor(tag: string, fallback: string): string {
   const r = resolveLfsTableColumnHeader(tag, lfsMeta.value)
@@ -154,6 +226,22 @@ const EDUCATION_OPTIONS = [
 const SECTOR_OPTIONS = ['حكومي', 'خاص', 'أهلي / غير ربحي', 'لا ينطبق']
 const MARITAL_OPTIONS = ['أعزب', 'متزوج', 'مطلق', 'أرمل', 'عزباء', 'متزوجة', 'مطلقة', 'أرملة']
 const GENDER_OPTIONS = ['ذكر', 'أنثى']
+const FAMILY_RELATION_OPTIONS = [
+  'رب الأسرة',
+  'زوج / زوجة',
+  'ابن / ابنة',
+  'أب / أم',
+  'آخر',
+]
+const ILO_STATUS_OPTIONS = [
+  'موظف',
+  'عامل لحسابه الخاص',
+  'عاطل عن العمل',
+  'طالب',
+  'متقاعد',
+  'رب منزل',
+  'أخرى',
+]
 
 const RANDOM_NAMES = [
   'أحمد محمد',
@@ -184,20 +272,55 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!
 }
 
+/** مؤهلات تُفعّل تعارض العمر مع قاعدة البكالوريوس+ عند العمر الأقل من 21 */
+const BACHELOR_PLUS: readonly string[] = ['بكالوريوس', 'ماجستير', 'دكتوراه']
+
+/**
+ * يولّد بيانات فيها 1–3 مخالفات عمداً (قواعد هجينة: عمر/مؤهل، أجر مرتفع، ساعات أسبوعية عالية).
+ */
 function generateRandomData() {
   const gender = pick(GENDER_OPTIONS)
   const cy = new Date().getFullYear()
+
+  const kinds = ['age_edu', 'salary', 'hours'] as const
+  const nViolations = 1 + Math.floor(Math.random() * 3)
+  const shuffled = [...kinds].sort(() => Math.random() - 0.5)
+  const active = new Set(shuffled.slice(0, nViolations))
+
+  let age = 24 + Math.floor(Math.random() * 28)
+  let q_301 = pick(EDUCATION_OPTIONS)
+  let q_602_val = 4000 + Math.floor(Math.random() * 18000)
+  let weekly_hours_usual = 32 + Math.floor(Math.random() * 14)
+  let weekly_hours_actual = weekly_hours_usual + Math.floor(Math.random() * 8)
+
+  if (active.has('age_edu')) {
+    age = 15 + Math.floor(Math.random() * 5)
+    q_301 = pick(BACHELOR_PLUS)
+  }
+  if (active.has('salary')) {
+    q_602_val = 50000 + Math.floor(Math.random() * 120000)
+  }
+  if (active.has('hours')) {
+    weekly_hours_usual = 85 + Math.floor(Math.random() * 20)
+    weekly_hours_actual = weekly_hours_usual + Math.floor(Math.random() * 12)
+  }
+
   form.value = {
     f_m_id: `DEMO-${1000 + Math.floor(Math.random() * 9000)}`,
-    age: 22 + Math.floor(Math.random() * 35),
+    age,
     gender,
     nationality: 'سعودي / سعودية',
-    q_301: pick(EDUCATION_OPTIONS),
+    q_301,
     marage_status: pick(MARITAL_OPTIONS),
+    family_relation: pick(FAMILY_RELATION_OPTIONS),
     q_537_e_job: pick(RANDOM_JOBS),
     d_ystartwk: cy - Math.floor(Math.random() * 22) - 1,
-    q_602_val: 5000 + Math.floor(Math.random() * 25000),
+    q_602_val,
     q_534: pick(SECTOR_OPTIONS),
+    economic_activity_text: pick(['تجارة تجزئة', 'خدمات تقنية', 'مقاولات بناء', 'صحة خاصة']),
+    weekly_hours_usual,
+    weekly_hours_actual,
+    ilo_employment_status: pick(ILO_STATUS_OPTIONS),
     children_count: Math.floor(Math.random() * 5),
   }
   validationResult.value = null
@@ -228,7 +351,7 @@ function triggerValidation() {
     } finally {
       isValidating.value = false
     }
-  }, 2500)
+  }, 420)
 }
 
 watch(form, triggerValidation, { deep: true })
@@ -282,13 +405,16 @@ const currentYear = new Date().getFullYear()
     <div class="page-head">
       <h1 class="page-title">استمارة LFS (الحارس الدلالي)</h1>
       <p class="page-desc">
-        حقول بأسماء الأعمدة كما في <strong>MetaData_LFS_Training_Dataset</strong> وملفات Excel؛ يُحوَّل الإدخال
-        تلقائياً لصيغة التحقق. التحقق اللحظي يبدأ بعد ملء حقلين على الأقل (غير المعرّف) والتوقف عن الكتابة قليلاً.
+        حقول بأسماء الأعمدة كما في <strong>MetaData_LFS_Training_Dataset</strong>؛ يُحوَّل الإدخال لصيغة التحقق.
+        بعد حقلين على الأقل (غير المعرّف)، تُطبَّق قواعد الأعمال تلقائياً أثناء الكتابة — تظهر ملاحظات التعارض تحت
+        الحقل (مثل العمر والمؤهل) دون الضغط على «تحقق نهائي».
       </p>
 
       <div v-if="apiError" class="banner banner-error">
-        <strong>⚠ تعذّر الاتصال بالخادم</strong> — الـ backend غير مشغّل على المنفذ 8000.<br />
-        من جذر المشروع: <code>./run.sh</code> أو من مجلد backend: <code>uvicorn main:app --reload --port 8000</code>
+        <strong>⚠ تعذّر الاتصال بالـ API</strong> — تأكد أن خادم FastAPI يعمل على
+        <code>http://127.0.0.1:8000</code> (الواجهة في التطوير تمرّر <code>/api</code> عبر Vite).<br />
+        من جذر المشروع: <code>./run.sh</code> أو: <code>cd backend &amp;&amp; uvicorn main:app --reload --host 127.0.0.1 --port 8000</code>
+        — إن كان المنفذ 8000 مستخدماً أوقف العملية القديمة أولاً (<code>lsof -i :8000</code>).
       </div>
       <div v-else-if="health && health.mode === 'demo'" class="banner banner-warning">
         🔧 وضع تجريبي — أضف <code>OPENAI_API_KEY</code> أو <code>GROQ_API_KEY</code> في ملف
@@ -353,101 +479,82 @@ const currentYear = new Date().getFullYear()
         <section class="form-section">
           <h2 class="form-section-title">
             <span class="sec-num">02</span>
-            الخصائص الديموغرافية
+            البيانات الشخصية الديموغرافية
           </h2>
           <div class="fields-grid">
             <div class="field">
               <label for="age">{{ labelFor('age', 'العمر') }} <span class="req">*</span></label>
               <input id="age" v-model.number="form.age" type="number" min="15" max="100" placeholder="مثال: 35" />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('age')"
+                :key="'age-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
             </div>
             <div class="field">
-              <label for="gender">{{ labelFor('gender', 'جنس الفرد') }}</label>
+              <label for="gender">{{ labelFor('gender', 'الجنس') }} <span class="req">*</span></label>
               <select id="gender" v-model="form.gender">
                 <option value="">— اختر —</option>
                 <option v-for="g in GENDER_OPTIONS" :key="g" :value="g">{{ g }}</option>
               </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('gender')"
+                :key="'g-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
             </div>
             <div class="field field-full">
-              <label for="nationality">{{ labelFor('nationality', 'جنسية الفرد') }}</label>
+              <label for="nationality">{{ labelFor('nationality', 'الجنسية') }} <span class="req">*</span></label>
               <input id="nationality" v-model="form.nationality" type="text" placeholder="مثال: سعودي" />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('nationality')"
+                :key="'nat-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
             </div>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">03</span>
-            التعليم والمهنة
-          </h2>
-          <div class="fields-grid">
-            <div class="field field-full">
-              <label for="q_301">{{ labelFor('q_301', 'أعلى مؤهل') }} <span class="req">*</span></label>
-              <select id="q_301" v-model="form.q_301">
-                <option value="">— اختر —</option>
-                <option v-for="e in EDUCATION_OPTIONS" :key="e" :value="e">{{ e }}</option>
-              </select>
-            </div>
-            <div class="field field-full">
-              <label for="q_537_e_job">{{ labelFor('q_537_e_job', 'المسمى الوظيفي') }} <span class="req">*</span></label>
-              <input
-                id="q_537_e_job"
-                v-model="form.q_537_e_job"
-                type="text"
-                placeholder="نص حر كما في الاستمارة"
-              />
-            </div>
-            <div class="field">
-              <label for="d_ystartwk">{{ labelFor('d_ystartwk', 'سنة بداية العمل') }}</label>
-              <input
-                id="d_ystartwk"
-                v-model.number="form.d_ystartwk"
-                type="number"
-                :min="1970"
-                :max="currentYear"
-                placeholder="يُحسب منها تقدير سنوات الخبرة"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">04</span>
-            العمل والأجر
-          </h2>
-          <div class="fields-grid">
-            <div class="field">
-              <label for="q_602_val">{{ labelFor('q_602_val', 'الأجر الشهري') }}</label>
-              <input
-                id="q_602_val"
-                v-model.number="form.q_602_val"
-                type="number"
-                min="0"
-                placeholder="ر.س"
-              />
-            </div>
-            <div class="field">
-              <label for="q_534">{{ labelFor('q_534', 'القطاع') }}</label>
-              <select id="q_534" v-model="form.q_534">
-                <option value="">— اختر —</option>
-                <option v-for="s in SECTOR_OPTIONS" :key="s" :value="s">{{ s }}</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">05</span>
-            الأسرة
-          </h2>
-          <div class="fields-grid">
             <div class="field">
               <label for="marage_status">{{ labelFor('marage_status', 'الحالة الاجتماعية') }}</label>
               <select id="marage_status" v-model="form.marage_status">
                 <option value="">— اختر —</option>
                 <option v-for="m in MARITAL_OPTIONS" :key="m" :value="m">{{ m }}</option>
               </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('marage_status')"
+                :key="'mar-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="family_relation">صلة القرابة برئيس الأسرة</label>
+              <select id="family_relation" v-model="form.family_relation">
+                <option value="">— اختر —</option>
+                <option v-for="fr in FAMILY_RELATION_OPTIONS" :key="fr" :value="fr">{{ fr }}</option>
+              </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('family_relation')"
+                :key="'fr-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
             </div>
             <div class="field">
               <label for="children_count">عدد الأبناء</label>
@@ -457,8 +564,198 @@ const currentYear = new Date().getFullYear()
                 type="number"
                 min="0"
                 max="20"
-                placeholder="مكمّل للتحقق من التناقضات"
+                placeholder="اختياري"
               />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('children_count')"
+                :key="'ch-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <span class="sec-num">03</span>
+            البيانات التعليمية
+          </h2>
+          <div class="fields-grid">
+            <div class="field field-full">
+              <label for="q_301">{{ labelFor('q_301', 'أعلى مؤهل تعليمي') }} <span class="req">*</span></label>
+              <select id="q_301" v-model="form.q_301">
+                <option value="">— اختر —</option>
+                <option v-for="e in EDUCATION_OPTIONS" :key="e" :value="e">{{ e }}</option>
+              </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('q_301')"
+                :key="'q301-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <span class="sec-num">04</span>
+            البيانات العملية والاقتصادية
+          </h2>
+          <div class="fields-grid">
+            <div class="field">
+              <label for="q_534">{{ labelFor('q_534', 'نوع القطاع المؤسسي') }}</label>
+              <select id="q_534" v-model="form.q_534">
+                <option value="">— اختر —</option>
+                <option v-for="s in SECTOR_OPTIONS" :key="s" :value="s">{{ s }}</option>
+              </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('q_534')"
+                :key="'534-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field field-full">
+              <label for="economic_activity_text">عنوان النشاط الاقتصادي</label>
+              <input
+                id="economic_activity_text"
+                v-model="form.economic_activity_text"
+                type="text"
+                placeholder="نص حر — يُرسَل للتحقق الهجين"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('economic_activity_text')"
+                :key="'eat-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field field-full">
+              <label for="q_537_e_job">{{ labelFor('q_537_e_job', 'المسمى الوظيفي أو المهنة') }} <span class="req">*</span></label>
+              <input
+                id="q_537_e_job"
+                v-model="form.q_537_e_job"
+                type="text"
+                placeholder="نص حر كما في الاستمارة"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('q_537_e_job')"
+                :key="'job-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="q_602_val">الأجر الشهري (ريال)</label>
+              <input
+                id="q_602_val"
+                v-model.number="form.q_602_val"
+                type="number"
+                min="0"
+                placeholder="مثال: 8000"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('q_602_val')"
+                :key="'602-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="weekly_hours_usual">ساعات العمل الاعتيادية الأسبوعية</label>
+              <input
+                id="weekly_hours_usual"
+                v-model.number="form.weekly_hours_usual"
+                type="number"
+                min="0"
+                max="168"
+                placeholder="مثال: 40"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('weekly_hours_usual')"
+                :key="'whu-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="weekly_hours_actual">ساعات العمل الفعلية الأسبوعية</label>
+              <input
+                id="weekly_hours_actual"
+                v-model.number="form.weekly_hours_actual"
+                type="number"
+                min="0"
+                max="168"
+                placeholder="مثال: 42"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('weekly_hours_actual')"
+                :key="'wha-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="ilo_employment_status">الحالة الوظيفية (ILO)</label>
+              <select id="ilo_employment_status" v-model="form.ilo_employment_status">
+                <option value="">— اختر —</option>
+                <option v-for="ilo in ILO_STATUS_OPTIONS" :key="ilo" :value="ilo">{{ ilo }}</option>
+              </select>
+              <div
+                v-for="(err, ei) in inlineErrorsFor('ilo_employment_status')"
+                :key="'ilo-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="d_ystartwk">{{ labelFor('d_ystartwk', 'سنة بداية العمل') }}</label>
+              <input
+                id="d_ystartwk"
+                v-model.number="form.d_ystartwk"
+                type="number"
+                :min="1970"
+                :max="currentYear"
+                placeholder="لتقدير سنوات الخبرة"
+              />
+              <div
+                v-for="(err, ei) in inlineErrorsFor('d_ystartwk')"
+                :key="'ystart-e-' + ei + err.message.slice(0, 24)"
+                class="field-inline-msg"
+                :class="'field-inline-' + (err.severity || 'medium')"
+                role="status"
+              >
+                {{ err.message }}
+              </div>
             </div>
           </div>
         </section>
@@ -468,7 +765,7 @@ const currentYear = new Date().getFullYear()
             <span v-if="isSubmitting" class="btn-spinner"></span>
             <span>{{ isSubmitting ? 'جارٍ التحقق…' : 'تحقق نهائي من الاستمارة' }}</span>
           </button>
-          <button type="button" class="btn btn-ghost" @click="generateRandomData">🎲 توليد بيانات عشوائية</button>
+          <button type="button" class="btn btn-ghost" @click="generateRandomData">🎲 توليد بيانات مخالفة للقواعد</button>
           <button type="button" class="btn btn-ghost" @click="resetForm">إعادة تعيين</button>
         </div>
 
@@ -478,12 +775,7 @@ const currentYear = new Date().getFullYear()
       </form>
 
       <div class="panel-col">
-        <ValidationPanel
-          :result="validationResult"
-          :is-loading="isValidating"
-          :mode="mode"
-          :field-labels="validationFieldLabels"
-        />
+        <SurveyLiveSidebar :result="validationResult" :is-loading="isValidating" :mode="mode" />
       </div>
     </div>
   </div>
@@ -694,6 +986,30 @@ const currentYear = new Date().getFullYear()
 .field select:focus {
   outline: none;
   border-color: #0e7490;
+}
+
+.field-inline-msg {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+}
+.field-inline-high {
+  color: #991b1b;
+  background: rgba(239, 68, 68, 0.09);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+.field-inline-medium {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+.field-inline-low {
+  color: #475569;
+  background: rgba(100, 116, 139, 0.1);
+  border-color: rgba(100, 116, 139, 0.22);
 }
 
 .form-actions {

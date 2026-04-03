@@ -8,8 +8,14 @@ import {
   formatLfsColumnHeaderTooltip,
   resolveLfsTableColumnHeader,
 } from '../utils/lfsTableColumnHeader'
-import { fetchBatchInsightsReport, validateBatchDynamic } from '../services/api'
-import type { BatchInsightsResponse, BatchResult, ValidationError } from '../services/api'
+import FieldRuleDetailModal from '../components/FieldRuleDetailModal.vue'
+import { fetchBatchInsightsReport, fetchLfsBusinessRulesCatalog, validateBatchDynamic } from '../services/api'
+import type {
+  BatchInsightsResponse,
+  BatchResult,
+  LfsBusinessRuleRow,
+  ValidationError,
+} from '../services/api'
 
 interface ValidationResult {
   confidence_score: number
@@ -36,6 +42,10 @@ const batchResult = ref<BatchResult | null>(null)
 const insightsReport = ref<BatchInsightsResponse | null>(null)
 const insightsLoading = ref(false)
 const insightsError = ref<string | null>(null)
+/** جدول قواعد الأعمال (مقترحات تصحيحية وملخصات) مفهرس بـ rule_id */
+const lfsRulesById = ref<Record<number, LfsBusinessRuleRow>>({})
+/** خلية مفتوحة لنافذة «قاعدة مؤكدة» */
+const fieldDetailTarget = ref<{ rowIndex: number; col: string } | null>(null)
 /** رسالة عند فشل الطلب للخادم (بعد الرفع التلقائي أو اليدوي) */
 const analysisError = ref<string | null>(null)
 /** فلترة الصفوف حسب الحالة أو أشدّ خطورة في الخلايا */
@@ -82,8 +92,22 @@ function columnHeaderTooltipFromCol(col: string): string {
   return r ? formatLfsColumnHeaderTooltip(r) : formatLfsColumnHeaderTooltip(resolveLfsTableColumnHeader(col, lfsColumnQuestionByName.value))
 }
 
+async function loadLfsRulesCatalog() {
+  try {
+    const data = await fetchLfsBusinessRulesCatalog()
+    const m: Record<number, LfsBusinessRuleRow> = {}
+    for (const r of data.rules) {
+      m[r.rule_id] = r
+    }
+    lfsRulesById.value = m
+  } catch {
+    lfsRulesById.value = {}
+  }
+}
+
 onMounted(() => {
   loadLfsColumnMetadata()
+  loadLfsRulesCatalog()
 })
 
 function rowMatchesSeverityFilter(r: RowData, f: RowSeverityFilter): boolean {
@@ -340,6 +364,7 @@ function processFile(file: File) {
     batchResult.value = null
     insightsReport.value = null
     insightsError.value = null
+    fieldDetailTarget.value = null
     analysisError.value = null
     rowSeverityFilter.value = 'all'
   }
@@ -393,6 +418,7 @@ function resetFile() {
   insightsReport.value = null
   insightsError.value = null
   analysisError.value = null
+  fieldDetailTarget.value = null
   rowSeverityFilter.value = 'all'
 }
 
@@ -408,6 +434,31 @@ function getFieldError(row: RowData, col: string): ValidationError | null {
     row.validation.errors.find((e) => target.includes(norm(e.field)) || norm(e.field).includes(target)) ||
     null
   )
+}
+
+const fieldDetailContext = computed(() => {
+  const t = fieldDetailTarget.value
+  if (t === null) return null
+  const row = rows.value.find((r) => r.row_index === t.rowIndex)
+  if (!row?.validation) return null
+  const err = getFieldError(row, t.col)
+  if (!err) return null
+  return {
+    row,
+    col: t.col,
+    err,
+    fieldLabel: columnHeaderLabel(err.field),
+    rowSuggestions: row.validation.suggestions ?? [],
+  }
+})
+
+function openFieldDetail(row: RowData, col: string) {
+  if (!getFieldError(row, col)) return
+  fieldDetailTarget.value = { rowIndex: row.row_index, col }
+}
+
+function closeFieldDetail() {
+  fieldDetailTarget.value = null
 }
 
 function getCellClass(row: RowData, col: string) {
@@ -833,7 +884,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         <span class="legend-item"><span class="legend-dot dot-high"></span> خطأ حرج</span>
         <span class="legend-item"><span class="legend-dot dot-medium"></span> تحذير متوسط</span>
         <span class="legend-item"><span class="legend-dot dot-low"></span> ملاحظة خفيفة</span>
-        <span class="legend-tip">تفاصيل الأخطاء والاقتراحات في عمود «تفاصيل»</span>
+        <span class="legend-tip"
+          >تفاصيل الصف من «تفاصيل»؛ للخلية الملوّنة: ⓘ أو نقرتان على الحقل لعرض القاعدة والمقترحات</span
+        >
       </div>
 
       <!-- Table -->
@@ -861,13 +914,34 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             <tr v-for="row in filteredRows" :key="row.row_index" :class="rowClass(row)">
               <td class="td-num">{{ row.row_index + 1 }}</td>
 
-              <td v-for="col in columns" :key="col"
-                :class="['data-cell', getCellClass(row, col)]">
-                <div class="cell-inner">
+              <td
+                v-for="col in columns"
+                :key="col"
+                :class="['data-cell', getCellClass(row, col)]"
+              >
+                <div
+                  class="cell-inner"
+                  @dblclick="
+                    batchResult && getFieldError(row, col) ? openFieldDetail(row, col) : undefined
+                  "
+                >
+                  <button
+                    v-if="batchResult && getFieldError(row, col)"
+                    type="button"
+                    class="cell-rule-trigger"
+                    title="تفاصيل القاعدة والمقترحات التصحيحية"
+                    aria-label="تفاصيل القاعدة"
+                    @click.stop="openFieldDetail(row, col)"
+                  >
+                    ⓘ
+                  </button>
                   <input
                     v-model="row.editableData[col]"
                     type="text"
                     class="cell-input"
+                    @dblclick.stop="
+                      batchResult && getFieldError(row, col) ? openFieldDetail(row, col) : undefined
+                    "
                   />
                 </div>
               </td>
@@ -903,6 +977,17 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       </div>
 
       <!-- نافذة تفاصيل المشكلة -->
+      <FieldRuleDetailModal
+        :model-value="fieldDetailContext !== null"
+        :error="fieldDetailContext?.err ?? null"
+        :field-label="fieldDetailContext?.fieldLabel ?? ''"
+        :column-key="fieldDetailContext?.col ?? ''"
+        :row-display-index="fieldDetailContext ? fieldDetailContext.row.row_index + 1 : 1"
+        :rules-by-id="lfsRulesById"
+        :row-suggestions="fieldDetailContext?.rowSuggestions ?? []"
+        @update:model-value="(v) => !v && closeFieldDetail()"
+      />
+
       <Teleport to="body">
         <div v-if="detailsModalRow !== null" class="details-overlay" @click.self="detailsModalRow = null">
           <div class="details-modal">
@@ -1658,6 +1743,39 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+.cell-inner:has(.cell-rule-trigger) .cell-input {
+  padding-inline-start: 1.5rem;
+}
+.cell-rule-trigger {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  inset-inline-start: 0.35rem;
+  z-index: 2;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.25rem;
+  background: rgba(59, 130, 246, 0.22);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cell-rule-trigger:hover {
+  background: rgba(59, 130, 246, 0.38);
+}
+.data-cell.cell-error-high .cell-rule-trigger,
+.data-cell.cell-error-medium .cell-rule-trigger,
+.data-cell.cell-error-low .cell-rule-trigger {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 .cell-val {
   white-space: nowrap;

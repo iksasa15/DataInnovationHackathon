@@ -1,4 +1,16 @@
-const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000'
+/**
+ * في التطوير (بدون VITE_API_URL): عنوان نسبي → يمر عبر proxy في vite.config (نفس منفذ Vite)
+ * فيتفادى رفض CORS عند تشغيل الواجهة على 5174 أو 5175 بدل 5173.
+ * في الإنتاج: عيّن VITE_API_URL لعنوان الـ API الكامل.
+ */
+function resolveApiBase(): string {
+  const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+  if (fromEnv) return fromEnv.replace(/\/$/, '')
+  if (import.meta.env.DEV) return ''
+  return 'http://localhost:8000'
+}
+
+const API_BASE = resolveApiBase()
 
 export function getApiBaseUrl(): string {
   return API_BASE
@@ -17,6 +29,11 @@ export interface FormData {
   sector?: string | null
   marital_status?: string | null
   children_count?: number | null
+  family_relation?: string | null
+  economic_activity_text?: string | null
+  weekly_hours_usual?: number | null
+  weekly_hours_actual?: number | null
+  ilo_employment_status?: string | null
   /** يُرسل لـ `/api/validate` — نفس منطق تحليل Excel */
   use_llm?: boolean
   apply_hybrid_rules?: boolean
@@ -30,6 +47,8 @@ export interface ValidationError {
   rule_id?: number
   message_en?: string
   rule_type?: string
+  /** رمز عرض من الخادم (مثل LFS_SALARY_HIGH، BR_4008) */
+  rule_code?: string
 }
 
 export interface ValidationResult {
@@ -216,6 +235,24 @@ export interface SupabaseStatusResult {
 
 export async function checkSupabaseStatus(): Promise<SupabaseStatusResult> {
   const response = await fetch(`${API_BASE}/api/supabase-status`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+/** صف من LFS_Business_Rules.xlsx — يُستخدم مع تفاصيل الخطأ حسب rule_id */
+export interface LfsBusinessRuleRow {
+  rule_id: number
+  error_type: string
+  action: string
+  rule_summary: string
+  message_en: string
+}
+
+export async function fetchLfsBusinessRulesCatalog(): Promise<{
+  source: Record<string, unknown>
+  rules: LfsBusinessRuleRow[]
+}> {
+  const response = await fetch(`${API_BASE}/api/lfs-business-rules`)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }

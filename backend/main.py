@@ -43,8 +43,14 @@ def _cors_allow_origins() -> list[str]:
     """محلياً + أي نطاقات تضيفها في ALLOWED_ORIGINS (مفصولة بفاصلة) للواجهة المنشورة."""
     defaults = [
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5176",
     ]
     raw = (os.getenv("ALLOWED_ORIGINS") or os.getenv("CORS_ORIGINS") or "").strip()
     extra = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
@@ -100,6 +106,11 @@ class FormData(BaseModel):
     sector: Optional[str] = None
     marital_status: Optional[str] = None
     children_count: Optional[int] = None
+    family_relation: Optional[str] = None
+    economic_activity_text: Optional[str] = None
+    weekly_hours_usual: Optional[float] = None
+    weekly_hours_actual: Optional[float] = None
+    ilo_employment_status: Optional[str] = None
     use_llm: bool = Field(
         True,
         description="إذا False: قواعد الأعمال فقط (مثل تحليل Excel بوضع القواعد).",
