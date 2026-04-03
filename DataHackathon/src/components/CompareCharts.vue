@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 import { Bar, Doughnut } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -17,29 +17,12 @@ ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale, LinearScale,
 
 ChartJS.defaults.font.family = "'Outfit', 'Segoe UI', system-ui, sans-serif"
 
-const isDark = ref(false)
-let mql: MediaQueryList | null = null
-
-function syncTheme() {
-  isDark.value = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-}
-
-onMounted(() => {
-  syncTheme()
-  mql = window.matchMedia('(prefers-color-scheme: dark)')
-  mql.addEventListener('change', syncTheme)
-})
-
-onUnmounted(() => {
-  mql?.removeEventListener('change', syncTheme)
-})
-
 const donutBefore = computed<ChartData<'doughnut'>>(() => ({
   labels: ['تغطية', 'متبقي'],
   datasets: [
     {
       data: [42, 58],
-      backgroundColor: isDark.value ? ['#94a3b8', '#334155'] : ['#64748b', '#e2e8f0'],
+      backgroundColor: ['#64748b', '#e2e8f0'],
       borderWidth: 0,
       hoverOffset: 6,
     },
@@ -51,9 +34,7 @@ const donutAfter = computed<ChartData<'doughnut'>>(() => ({
   datasets: [
     {
       data: [88, 12],
-      backgroundColor: isDark.value
-        ? ['#22d3ee', 'rgba(34, 211, 238, 0.18)']
-        : ['#0e7490', 'rgba(6, 182, 212, 0.25)'],
+      backgroundColor: ['#0e7490', 'rgba(6, 182, 212, 0.25)'],
       borderWidth: 0,
       hoverOffset: 6,
     },
@@ -91,14 +72,14 @@ const barData = computed<ChartData<'bar'>>(() => ({
     {
       label: 'تقليدي',
       data: [100, 32, 28],
-      backgroundColor: isDark.value ? '#64748b' : '#64748b',
+      backgroundColor: '#64748b',
       borderRadius: 6,
       maxBarThickness: 22,
     },
     {
       label: 'مع عين',
       data: [36, 94, 100],
-      backgroundColor: isDark.value ? '#0891b2' : '#0e7490',
+      backgroundColor: '#0e7490',
       borderRadius: 6,
       maxBarThickness: 22,
     },
@@ -113,7 +94,7 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
     x: {
       beginAtZero: true,
       max: 100,
-      grid: { color: isDark.value ? 'rgba(148, 163, 184, 0.15)' : 'rgba(15, 23, 42, 0.08)' },
+      grid: { color: 'rgba(15, 23, 42, 0.08)' },
       ticks: {
         callback: (value) => `${value}٪`,
         font: { size: 11 },
@@ -308,12 +289,6 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
 @media (min-width: 640px) {
   .bar-chart-inner {
     height: 220px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .donut-arrow {
-    color: #22d3ee;
   }
 }
 </style>

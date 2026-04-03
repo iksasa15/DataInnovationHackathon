@@ -5,6 +5,7 @@ import iconv from 'iconv-lite'
 import FieldRuleDetailModal from '../components/FieldRuleDetailModal.vue'
 import { fetchBatchInsightsReport, fetchLfsBusinessRulesCatalog, validateBatchDynamic } from '../services/api'
 import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
+import { mergeLfsDescIntoCodeRows } from '../utils/lfsCodeDescMerge'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { resolveLfsTableColumnHeader } from '../utils/lfsTableColumnHeader'
 import type { BatchInsightsResponse, BatchResult, LfsBusinessRuleRow, ValidationError } from '../services/api'
@@ -172,8 +173,14 @@ function processFile(file: File) {
         uploadError.value = 'الملف فارغ أو لا يحتوي على أعمدة'
         return
       }
-      columns.value = Object.keys(rawRows[0])
-      rows.value = rawRows.map((row, i) => ({
+      const mergedRows = mergeLfsDescIntoCodeRows(rawRows) as Record<string, any>[]
+      const head = mergedRows[0]
+      if (!head) {
+        uploadError.value = 'الملف فارغ أو لا يحتوي على أعمدة'
+        return
+      }
+      columns.value = Object.keys(head)
+      rows.value = mergedRows.map((row, i) => ({
         row_index: i,
         originalData: row,
         editableData: { ...row },
@@ -1250,11 +1257,4 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .score-na { color: var(--color-text); opacity: 0.3; font-size: 0.85rem; }
 
-@media (prefers-color-scheme: dark) {
-  .upload-zone:hover { border-color: #22d3ee; }
-  .tab-active { border-color: #22d3ee; color: #22d3ee; }
-  .file-rows { color: #22d3ee; background: rgba(34,211,238,0.1); }
-  .tooltip-box { background: #111827; }
-  .tooltip-box::after { border-top-color: #111827; }
-}
 </style>

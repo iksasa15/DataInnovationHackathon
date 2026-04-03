@@ -607,21 +607,4 @@ const highlights = [
   border-top: 1px solid var(--color-border);
 }
 
-@media (prefers-color-scheme: dark) {
-  .hero-brand,
-  .hero-cta-label,
-  .how-node-label,
-  .footer-links a {
-    color: #67e8f9;
-  }
-  .hero-title {
-    color: var(--color-heading);
-  }
-  .step-num {
-    background: linear-gradient(145deg, #0891b2, #0e7490);
-  }
-  .how-connector {
-    background: linear-gradient(90deg, #0891b2, #22d3ee);
-  }
-}
 </style>

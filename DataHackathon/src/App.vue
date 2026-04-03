@@ -86,17 +86,4 @@ import { RouterLink, RouterView } from 'vue-router'
 .app-main {
   flex: 1;
 }
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    color: #22d3ee;
-  }
-  .nav a:hover,
-  .nav a.router-link-active {
-    color: #22d3ee;
-  }
-  .nav a.router-link-active {
-    background: rgba(34, 211, 238, 0.12);
-  }
-}
 </style>

@@ -1085,29 +1085,4 @@ const currentYear = new Date().getFullYear()
   opacity: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .sec-num {
-    color: #22d3ee;
-    background: rgba(34, 211, 238, 0.12);
-  }
-  .field input:focus,
-  .field select:focus {
-    border-color: #22d3ee;
-  }
-  .btn-primary {
-    background: #0891b2;
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: #0e7490;
-  }
-  .banner-warning {
-    color: #fef3c7;
-  }
-  .banner-success {
-    color: #d1fae5;
-  }
-  .banner-error {
-    color: #fecaca;
-  }
-}
 </style>

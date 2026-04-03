@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
+import { mergeLfsDescIntoCodeRows } from '../utils/lfsCodeDescMerge'
 import {
   formatLfsColumnHeaderTooltip,
   resolveLfsTableColumnHeader,
@@ -302,7 +303,9 @@ function parseWorkbook(data: ArrayBuffer, isCsv: boolean) {
   return XLSX.read(new Uint8Array(data), { type: 'array' })
 }
 
-/** أعمدة الوصف المرافقة للرمز (*_desc) — للترميز التقني ولا تُعرض للمستخدم النهائي */
+/**
+ * أعمدة *_desc المتبقية (بعد دمج lfsCodeDescMerge) — تُخفى إن وُجدت دون قاعدة مطابقة.
+ */
 function isTechnicalDescColumn(key: string): boolean {
   return key.trim().toLowerCase().endsWith('_desc')
 }
@@ -350,7 +353,8 @@ function processFile(file: File) {
     )
     if (!rawRows.length || !rawRows[0]) return
 
-    const { columns: visibleCols, rows: dataRows } = stripTechnicalDescColumns(rawRows)
+    const merged = mergeLfsDescIntoCodeRows(rawRows) as Record<string, any>[]
+    const { columns: visibleCols, rows: dataRows } = stripTechnicalDescColumns(merged)
     if (!visibleCols.length) return
 
     columns.value = visibleCols
@@ -1900,11 +1904,4 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .score-na { color: var(--color-text); opacity: 0.3; font-size: 0.85rem; }
 
-@media (prefers-color-scheme: dark) {
-  .upload-zone:hover { border-color: #22d3ee; }
-  .tab-active { border-color: #22d3ee; color: #22d3ee; }
-  .file-rows { color: #22d3ee; background: rgba(34,211,238,0.1); }
-  .tooltip-box { background: #111827; }
-  .tooltip-box::after { border-top-color: #111827; }
-}
 </style>

@@ -394,8 +394,4 @@ const severityMeta = (s: string) => {
   font-weight: 700;
 }
 
-@media (prefers-color-scheme: dark) {
-  .summary { border-right-color: #22d3ee; }
-  .error-field { color: #22d3ee; }
-}
 </style>
