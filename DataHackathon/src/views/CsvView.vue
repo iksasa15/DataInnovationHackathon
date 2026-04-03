@@ -8,6 +8,8 @@ import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
 import { mergeLfsDescIntoCodeRows } from '../utils/lfsCodeDescMerge'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { resolveLfsTableColumnHeader } from '../utils/lfsTableColumnHeader'
+import { validationErrorMatchesKind } from '../utils/lfsIssueKind'
+import type { IssueKindClass } from '../utils/lfsIssueKind'
 import type { BatchInsightsResponse, BatchResult, LfsBusinessRuleRow, ValidationError } from '../services/api'
 
 interface ValidationResult {
@@ -41,10 +43,60 @@ const lfsMeta = ref<Record<string, string>>({})
 const lfsRulesById = ref<Record<number, LfsBusinessRuleRow>>({})
 const fieldDetailTarget = ref<{ rowIndex: number; col: string } | null>(null)
 
+type SeverityFilterBtn = 'all' | 'high' | 'medium' | 'low'
+type IssueKindFilterBtn = 'all' | IssueKindClass
+
+const severityFilterBtn = ref<SeverityFilterBtn>('all')
+const issueKindFilterBtn = ref<IssueKindFilterBtn>('all')
+
+function rowMatchesSeverityBtn(r: RowData, f: SeverityFilterBtn): boolean {
+  if (f === 'all') return true
+  return (r.validation?.errors ?? []).some((e) => String(e.severity ?? 'medium').toLowerCase() === f)
+}
+
+function rowMatchesIssueKindBtn(r: RowData, f: IssueKindFilterBtn): boolean {
+  if (f === 'all') return true
+  return (r.validation?.errors ?? []).some((e) => validationErrorMatchesKind(e, f))
+}
+
 const filteredRows = computed(() => {
-  if (filter.value === 'all') return rows.value
-  return rows.value.filter((r) => r.validation?.status === filter.value)
+  let list = rows.value
+  if (filter.value !== 'all') {
+    list = list.filter((r) => r.validation?.status === filter.value)
+  }
+  return list.filter(
+    (r) => rowMatchesSeverityBtn(r, severityFilterBtn.value) && rowMatchesIssueKindBtn(r, issueKindFilterBtn.value),
+  )
 })
+
+const severityFilterCounts = computed(() => {
+  const list = rows.value
+  const n = (pred: (r: RowData) => boolean) => list.filter(pred).length
+  return {
+    all: list.length,
+    high: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'high')),
+    medium: n((r) =>
+      (r.validation?.errors ?? []).some((e) => String(e.severity ?? 'medium').toLowerCase() === 'medium'),
+    ),
+    low: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'low')),
+  }
+})
+
+const issueKindFilterCounts = computed(() => {
+  const list = rows.value
+  const n = (kind: IssueKindClass) =>
+    list.filter((r) => (r.validation?.errors ?? []).some((e) => validationErrorMatchesKind(e, kind))).length
+  return {
+    all: list.length,
+    semantic: n('semantic'),
+    logical: n('logical'),
+    input: n('input'),
+  }
+})
+
+const filterToolbarActive = computed(
+  () => severityFilterBtn.value !== 'all' || issueKindFilterBtn.value !== 'all',
+)
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
@@ -207,6 +259,8 @@ function processFile(file: File) {
       insightsError.value = null
       fieldDetailTarget.value = null
       filter.value = 'all'
+      severityFilterBtn.value = 'all'
+      issueKindFilterBtn.value = 'all'
     } catch (err) {
       uploadError.value = 'تعذر قراءة الملف. تأكد أنه ملف CSV صالح.'
     }
@@ -247,6 +301,8 @@ function resetFile() {
   insightsError.value = null
   fieldDetailTarget.value = null
   filter.value = 'all'
+  severityFilterBtn.value = 'all'
+  issueKindFilterBtn.value = 'all'
   uploadError.value = ''
 }
 
@@ -574,6 +630,86 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         <span v-else-if="batchResult.provider === 'local'">
           التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
         </span>
+      </div>
+
+      <div v-if="batchResult" class="filter-toolbar" aria-label="فلترة الصفوف">
+        <div class="filter-toolbar-row">
+          <span class="filter-toolbar-label">الشدة</span>
+          <div class="filter-btn-group" role="group">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'all' }"
+              @click="severityFilterBtn = 'all'"
+            >
+              الكل <span class="filter-chip-n">{{ severityFilterCounts.all }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-high"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'high' }"
+              @click="severityFilterBtn = 'high'"
+            >
+              عالية <span class="filter-chip-n">{{ severityFilterCounts.high }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-med"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'medium' }"
+              @click="severityFilterBtn = 'medium'"
+            >
+              متوسطة <span class="filter-chip-n">{{ severityFilterCounts.medium }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-low"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'low' }"
+              @click="severityFilterBtn = 'low'"
+            >
+              منخفضة <span class="filter-chip-n">{{ severityFilterCounts.low }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="filter-toolbar-row">
+          <span class="filter-toolbar-label">نوع التنبيه</span>
+          <div class="filter-btn-group filter-btn-group--kind" role="group">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'all' }"
+              @click="issueKindFilterBtn = 'all'"
+            >
+              الكل <span class="filter-chip-n">{{ issueKindFilterCounts.all }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'semantic' }"
+              @click="issueKindFilterBtn = 'semantic'"
+            >
+              تناقض دلالي <span class="filter-chip-n">{{ issueKindFilterCounts.semantic }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'logical' }"
+              @click="issueKindFilterBtn = 'logical'"
+            >
+              تعارض منطقي <span class="filter-chip-n">{{ issueKindFilterCounts.logical }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'input' }"
+              @click="issueKindFilterBtn = 'input'"
+            >
+              احتمال خطأ إدخال <span class="filter-chip-n">{{ issueKindFilterCounts.input }}</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="filterToolbarActive" class="filter-toolbar-hint">
+          يعرض {{ filteredRows.length }} من {{ rows.length }} صفاً
+        </p>
       </div>
 
       <div v-if="batchResult" class="filter-tabs">
@@ -906,6 +1042,90 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .severity-card--low .severity-card-num {
   color: #4b5563;
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+  padding: 0.65rem 0.9rem;
+  background: var(--color-background-mute);
+  border: 1px solid var(--color-border);
+  border-radius: 0.55rem;
+}
+.filter-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.75rem;
+}
+.filter-toolbar-label {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  padding-top: 0.35rem;
+}
+.filter-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1 1 12rem;
+}
+.filter-btn-group--kind .filter-chip {
+  font-size: 0.78rem;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.filter-chip:hover {
+  background: var(--color-background-soft);
+}
+.filter-chip--on {
+  border-color: #0e7490;
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+.filter-chip--sev-high.filter-chip--on {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+.filter-chip--sev-med.filter-chip--on {
+  border-color: #d97706;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+.filter-chip--sev-low.filter-chip--on {
+  border-color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+  color: #374151;
+}
+.filter-chip-n {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.filter-toolbar-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.85;
 }
 
 .batch-insights-section { margin-bottom: 1rem; }

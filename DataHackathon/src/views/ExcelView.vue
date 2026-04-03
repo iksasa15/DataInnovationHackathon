@@ -9,6 +9,8 @@ import {
   formatLfsColumnHeaderTooltip,
   resolveLfsTableColumnHeader,
 } from '../utils/lfsTableColumnHeader'
+import { validationErrorMatchesKind } from '../utils/lfsIssueKind'
+import type { IssueKindClass } from '../utils/lfsIssueKind'
 import FieldRuleDetailModal from '../components/FieldRuleDetailModal.vue'
 import { fetchBatchInsightsReport, fetchLfsBusinessRulesCatalog, validateBatchDynamic } from '../services/api'
 import type {
@@ -49,18 +51,11 @@ const lfsRulesById = ref<Record<number, LfsBusinessRuleRow>>({})
 const fieldDetailTarget = ref<{ rowIndex: number; col: string } | null>(null)
 /** رسالة عند فشل الطلب للخادم (بعد الرفع التلقائي أو اليدوي) */
 const analysisError = ref<string | null>(null)
-/** فلترة الصفوف حسب الحالة أو أشدّ خطورة في الخلايا */
-type RowSeverityFilter =
-  | 'all'
-  | 'valid'
-  | 'negative'
-  | 'row_error'
-  | 'row_warning'
-  | 'sev_high'
-  | 'sev_medium'
-  | 'sev_low'
+type SeverityFilterBtn = 'all' | 'high' | 'medium' | 'low'
+type IssueKindFilterBtn = 'all' | IssueKindClass
 
-const rowSeverityFilter = ref<RowSeverityFilter>('all')
+const severityFilterBtn = ref<SeverityFilterBtn>('all')
+const issueKindFilterBtn = ref<IssueKindFilterBtn>('all')
 const detailsModalRow = ref<number | null>(null)
 
 /** قواعد فقط | Gemini فقط | الاثنان معاً */
@@ -111,46 +106,50 @@ onMounted(() => {
   loadLfsRulesCatalog()
 })
 
-function rowMatchesSeverityFilter(r: RowData, f: RowSeverityFilter): boolean {
-  const v = r.validation
-  switch (f) {
-    case 'all':
-      return true
-    case 'valid':
-      return v?.status === 'valid'
-    case 'negative':
-      return v != null && (v.status === 'error' || v.status === 'warning')
-    case 'row_error':
-      return v?.status === 'error'
-    case 'row_warning':
-      return v?.status === 'warning'
-    case 'sev_high':
-      return (v?.errors ?? []).some((e) => e.severity === 'high')
-    case 'sev_medium':
-      return (v?.errors ?? []).some((e) => e.severity === 'medium')
-    case 'sev_low':
-      return (v?.errors ?? []).some((e) => e.severity === 'low')
-    default:
-      return true
-  }
+function rowMatchesSeverityBtn(r: RowData, f: SeverityFilterBtn): boolean {
+  if (f === 'all') return true
+  return (r.validation?.errors ?? []).some((e) => String(e.severity ?? 'medium').toLowerCase() === f)
 }
 
-const filteredRows = computed(() => rows.value.filter((r) => rowMatchesSeverityFilter(r, rowSeverityFilter.value)))
+function rowMatchesIssueKindBtn(r: RowData, f: IssueKindFilterBtn): boolean {
+  if (f === 'all') return true
+  return (r.validation?.errors ?? []).some((e) => validationErrorMatchesKind(e, f))
+}
 
-const rowFilterCounts = computed(() => {
+const filteredRows = computed(() =>
+  rows.value.filter(
+    (r) => rowMatchesSeverityBtn(r, severityFilterBtn.value) && rowMatchesIssueKindBtn(r, issueKindFilterBtn.value),
+  ),
+)
+
+const severityFilterCounts = computed(() => {
   const list = rows.value
   const n = (pred: (r: RowData) => boolean) => list.filter(pred).length
   return {
     all: list.length,
-    valid: n((r) => r.validation?.status === 'valid'),
-    negative: n((r) => !!r.validation && (r.validation!.status === 'error' || r.validation!.status === 'warning')),
-    row_error: n((r) => r.validation?.status === 'error'),
-    row_warning: n((r) => r.validation?.status === 'warning'),
-    sev_high: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'high')),
-    sev_medium: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'medium')),
-    sev_low: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'low')),
+    high: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'high')),
+    medium: n((r) =>
+      (r.validation?.errors ?? []).some((e) => String(e.severity ?? 'medium').toLowerCase() === 'medium'),
+    ),
+    low: n((r) => (r.validation?.errors ?? []).some((e) => e.severity === 'low')),
   }
 })
+
+const issueKindFilterCounts = computed(() => {
+  const list = rows.value
+  const n = (kind: IssueKindClass) =>
+    list.filter((r) => (r.validation?.errors ?? []).some((e) => validationErrorMatchesKind(e, kind))).length
+  return {
+    all: list.length,
+    semantic: n('semantic'),
+    logical: n('logical'),
+    input: n('input'),
+  }
+})
+
+const filterToolbarActive = computed(
+  () => severityFilterBtn.value !== 'all' || issueKindFilterBtn.value !== 'all',
+)
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
@@ -386,7 +385,8 @@ function processFile(file: File) {
     insightsError.value = null
     fieldDetailTarget.value = null
     analysisError.value = null
-    rowSeverityFilter.value = 'all'
+    severityFilterBtn.value = 'all'
+    issueKindFilterBtn.value = 'all'
   }
 
   reader.readAsArrayBuffer(file)
@@ -439,7 +439,8 @@ function resetFile() {
   insightsError.value = null
   analysisError.value = null
   fieldDetailTarget.value = null
-  rowSeverityFilter.value = 'all'
+  severityFilterBtn.value = 'all'
+  issueKindFilterBtn.value = 'all'
 }
 
 function norm(value: string) {
@@ -897,26 +898,85 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         </span>
       </div>
 
-      <!-- فلترة الصفوف حسب الحالة أو شدة الخطأ في الخلايا -->
-      <div v-if="batchResult" class="severity-filter-bar">
-        <label class="severity-filter-label" for="row-severity-filter">فلترة الصفوف</label>
-        <select
-          id="row-severity-filter"
-          v-model="rowSeverityFilter"
-          class="severity-select"
-        >
-          <option value="all">الكل ({{ rowFilterCounts.all }})</option>
-          <option value="valid">سليمة ({{ rowFilterCounts.valid }})</option>
-          <option value="negative">سلبية — غير سليمة ({{ rowFilterCounts.negative }})</option>
-          <option value="row_error">صف بحالة خطأ ({{ rowFilterCounts.row_error }})</option>
-          <option value="row_warning">صف بحالة تحذير ({{ rowFilterCounts.row_warning }})</option>
-          <option value="sev_high">فيها خطأ حرج (خلية) ({{ rowFilterCounts.sev_high }})</option>
-          <option value="sev_medium">فيها تحذير متوسط ({{ rowFilterCounts.sev_medium }})</option>
-          <option value="sev_low">فيها ملاحظة خفيفة ({{ rowFilterCounts.sev_low }})</option>
-        </select>
-        <span v-if="rowSeverityFilter !== 'all'" class="severity-filter-hint">
-          يعرض {{ filteredRows.length }} من {{ rows.length }} صف
-        </span>
+      <!-- فلترة: شدة الخلية + نوع التنبيه -->
+      <div v-if="batchResult" class="filter-toolbar" aria-label="فلترة الصفوف">
+        <div class="filter-toolbar-row">
+          <span class="filter-toolbar-label">الشدة</span>
+          <div class="filter-btn-group" role="group">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'all' }"
+              @click="severityFilterBtn = 'all'"
+            >
+              الكل <span class="filter-chip-n">{{ severityFilterCounts.all }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-high"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'high' }"
+              @click="severityFilterBtn = 'high'"
+            >
+              عالية <span class="filter-chip-n">{{ severityFilterCounts.high }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-med"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'medium' }"
+              @click="severityFilterBtn = 'medium'"
+            >
+              متوسطة <span class="filter-chip-n">{{ severityFilterCounts.medium }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip filter-chip--sev-low"
+              :class="{ 'filter-chip--on': severityFilterBtn === 'low' }"
+              @click="severityFilterBtn = 'low'"
+            >
+              منخفضة <span class="filter-chip-n">{{ severityFilterCounts.low }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="filter-toolbar-row">
+          <span class="filter-toolbar-label">نوع التنبيه</span>
+          <div class="filter-btn-group filter-btn-group--kind" role="group">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'all' }"
+              @click="issueKindFilterBtn = 'all'"
+            >
+              الكل <span class="filter-chip-n">{{ issueKindFilterCounts.all }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'semantic' }"
+              @click="issueKindFilterBtn = 'semantic'"
+            >
+              تناقض دلالي <span class="filter-chip-n">{{ issueKindFilterCounts.semantic }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'logical' }"
+              @click="issueKindFilterBtn = 'logical'"
+            >
+              تعارض منطقي <span class="filter-chip-n">{{ issueKindFilterCounts.logical }}</span>
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--on': issueKindFilterBtn === 'input' }"
+              @click="issueKindFilterBtn = 'input'"
+            >
+              احتمال خطأ إدخال <span class="filter-chip-n">{{ issueKindFilterCounts.input }}</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="filterToolbarActive" class="filter-toolbar-hint">
+          يعرض {{ filteredRows.length }} من {{ rows.length }} صفاً
+        </p>
       </div>
 
       <!-- Legend -->
@@ -1603,41 +1663,88 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .tab-warning.tab-active { border-color: #f59e0b; color: #f59e0b; }
 .tab-valid.tab-active { border-color: #10b981; color: #10b981; }
 
-.severity-filter-bar {
+.filter-toolbar {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.65rem;
   margin-bottom: 0.85rem;
-  padding: 0.55rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   background: var(--color-background-mute);
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  border-radius: 0.55rem;
 }
-.severity-filter-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+.filter-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.75rem;
+}
+.filter-toolbar-label {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--color-heading);
-  white-space: nowrap;
+  padding-top: 0.35rem;
 }
-.severity-select {
-  flex: 1 1 14rem;
-  min-width: min(100%, 18rem);
-  padding: 0.5rem 0.65rem;
-  font-size: 0.875rem;
+.filter-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1 1 12rem;
+}
+.filter-btn-group--kind .filter-chip {
+  font-size: 0.78rem;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   font-family: inherit;
-  border: 1px solid var(--color-border);
-  border-radius: 0.4rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
   background: var(--color-background);
   color: var(--color-text);
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.severity-filter-hint {
+.filter-chip:hover {
+  background: var(--color-background-soft);
+}
+.filter-chip--on {
+  border-color: #0e7490;
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+.filter-chip--sev-high.filter-chip--on {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+.filter-chip--sev-med.filter-chip--on {
+  border-color: #d97706;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+.filter-chip--sev-low.filter-chip--on {
+  border-color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+  color: #374151;
+}
+.filter-chip-n {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.filter-toolbar-hint {
+  margin: 0;
   font-size: 0.78rem;
   color: var(--color-text);
-  opacity: 0.82;
-  width: 100%;
-  flex-basis: 100%;
+  opacity: 0.85;
 }
 
 /* Legend */
