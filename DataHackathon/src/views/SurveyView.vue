@@ -3,7 +3,8 @@ import { ref, watch, onMounted, computed } from 'vue'
 import ValidationPanel from '../components/ValidationPanel.vue'
 import { validateForm, checkHealth } from '../services/api'
 import type { FormData, ValidationResult, HealthStatus } from '../services/api'
-import { columnQuestionLabel, loadLfsMetadataMap } from '../utils/lfsMetadata'
+import { loadLfsMetadataMap } from '../utils/lfsMetadata'
+import { resolveLfsTableColumnHeader } from '../utils/lfsTableColumnHeader'
 
 /**
  * حقول بأسماء أعمدة LFS كما في `MetaData_LFS_Training_Dataset.xlsx` وملفات Excel/CSV للمسح.
@@ -100,35 +101,37 @@ function meaningfulFieldCount(s: LfsLiveSurveyFields): number {
 
 const validationFieldLabels = computed(() => {
   const m = lfsMeta.value
-  const L = (tag: string, fallback: string) => {
-    const q = columnQuestionLabel(tag, m)
-    return q === tag ? fallback : q
+  const line = (tag: string, fb: string) => {
+    const r = resolveLfsTableColumnHeader(tag, m)
+    const main = r.shortLabel !== r.technicalId ? r.shortLabel : fb
+    return r.category ? `${r.category} — ${main}` : main
   }
-  const q301 = L('q_301', 'أعلى مؤهل')
-  const q534 = L('q_534', 'القطاع المؤسسي')
+  const q301 = line('q_301', 'أعلى مؤهل')
+  const q534 = line('q_534', 'النشاط المؤسسي')
   return {
-    name: L('f_m_id', 'معرّف الفرد'),
-    age: L('age', 'العمر'),
-    gender: L('gender', 'جنس الفرد'),
-    nationality: L('nationality', 'جنسية الفرد'),
+    name: line('f_m_id', 'معرّف الفرد'),
+    age: line('age', 'العمر'),
+    gender: line('gender', 'جنس الفرد'),
+    nationality: line('nationality', 'الجنسية'),
     education: q301,
     q_301: q301,
     q_301_desc: q301,
-    job_title: L('q_537_e_job', 'المسمى الوظيفي'),
-    years_experience: 'سنوات الخبرة (تقدير من سنة بداية العمل)',
-    monthly_salary: L('q_602_val', 'الأجر الشهري'),
+    job_title: line('q_537_e_job', 'المسمى الوظيفي'),
+    years_experience: line('d_ystartwk', 'سنوات الخبرة (تقدير)'),
+    monthly_salary: line('q_602_val', 'الأجر الشهري'),
     sector: q534,
     q_534: q534,
     q_534_desc: q534,
-    q_302_e_txt: L('q_302_e_txt', 'مجال الدراسة / التخصص'),
-    marital_status: L('marage_status', 'الحالة الاجتماعية'),
+    q_302_e_txt: line('q_302_e_txt', 'التخصص'),
+    marital_status: line('marage_status', 'الحالة الاجتماعية'),
     children_count: 'عدد الأبناء',
   }
 })
 
 function labelFor(tag: string, fallback: string): string {
-  const q = columnQuestionLabel(tag, lfsMeta.value)
-  return q === tag ? fallback : q
+  const r = resolveLfsTableColumnHeader(tag, lfsMeta.value)
+  const main = r.shortLabel !== r.technicalId ? r.shortLabel : fallback
+  return r.category ? `${r.category} — ${main}` : main
 }
 
 const validationResult = ref<ValidationResult | null>(null)

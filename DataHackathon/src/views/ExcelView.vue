@@ -2,8 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
-import { columnQuestionLabel, loadLfsMetadataMap } from '../utils/lfsMetadata'
+import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { normalizeRowsNullLike } from '../utils/spreadsheetNull'
+import {
+  formatLfsColumnHeaderTooltip,
+  resolveLfsTableColumnHeader,
+} from '../utils/lfsTableColumnHeader'
 import { validateBatchDynamic } from '../services/api'
 import type { BatchResult, ValidationError } from '../services/api'
 
@@ -55,9 +59,23 @@ async function loadLfsColumnMetadata() {
   lfsColumnQuestionByName.value = await loadLfsMetadataMap(import.meta.env.BASE_URL)
 }
 
-/** عنوان العرض في الجدول: نص السؤال من الميتاداتا إن وُجد، وإلا المعرّف كما في الملف */
+/** خريطة رؤوس الأعمدة (تصنيف + مختصر) — تُحدَّث مع الأعمدة والميتاداتا */
+const columnHeaderByCol = computed(() => {
+  const meta = lfsColumnQuestionByName.value
+  const map: Record<string, ReturnType<typeof resolveLfsTableColumnHeader>> = {}
+  for (const c of columns.value) {
+    map[c] = resolveLfsTableColumnHeader(c, meta)
+  }
+  return map
+})
+
+/** للحقول خارج الجدول (تنبيهات، تفاصيل) */
 function columnHeaderLabel(tag: string): string {
-  return columnQuestionLabel(tag, lfsColumnQuestionByName.value)
+  return resolveLfsTableColumnHeader(tag, lfsColumnQuestionByName.value).shortLabel
+}
+function columnHeaderTooltipFromCol(col: string): string {
+  const r = columnHeaderByCol.value[col]
+  return r ? formatLfsColumnHeaderTooltip(r) : formatLfsColumnHeaderTooltip(resolveLfsTableColumnHeader(col, lfsColumnQuestionByName.value))
 }
 
 onMounted(() => {
@@ -480,7 +498,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   if (v.status === 'valid' && (!v.errors?.length && !v.suggestions?.length)) {
     return { isOk: true, summary: v.summary || undefined, problems: [], suggestions: v.suggestions || [] }
   }
-  const problems = (v.errors || []).map((e) => `${e.field}: ${e.message}`)
+  const problems = (v.errors || []).map(
+    (e) => `${columnHeaderLabel(e.field)} (${e.field}): ${e.message}`,
+  )
   const suggestions = v.suggestions || []
   return {
     isOk: false,
@@ -712,8 +732,16 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           <thead>
             <tr>
               <th class="th-num">#</th>
-              <th v-for="col in columns" :key="col" class="th-col" :title="columnHeaderLabel(col) !== col ? col : undefined">
-                {{ columnHeaderLabel(col) }}
+              <th
+                v-for="col in columns"
+                :key="col"
+                class="th-col"
+                :title="columnHeaderTooltipFromCol(col)"
+              >
+                <span v-if="columnHeaderByCol[col]?.category" class="th-col-cat">{{
+                  columnHeaderByCol[col]!.category
+                }}</span>
+                <span class="th-col-short">{{ columnHeaderByCol[col]?.shortLabel ?? col }}</span>
               </th>
               <th v-if="batchResult" class="th-details">تفاصيل</th>
               <th v-if="batchResult" class="th-score">درجة الثقة</th>
@@ -1243,9 +1271,24 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
-  min-width: 8rem;
-  max-width: 13rem;
-  line-height: 1.35;
+  min-width: 7.5rem;
+  max-width: 11rem;
+  line-height: 1.3;
+}
+.th-col-cat {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.72;
+  margin-bottom: 0.2rem;
+  line-height: 1.25;
+}
+.th-col-short {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-heading);
 }
 .th-num, .td-num {
   text-align: center;
