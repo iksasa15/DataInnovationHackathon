@@ -28,16 +28,12 @@ const router = createRouter({
     { path: '/excel', redirect: '/analysis' },
     { path: '/csv', redirect: '/analysis' },
     {
-      path: '/tests',
-      name: 'tests',
-      component: () => import('../views/AboutView.vue'),
-    },
-    {
       path: '/privacy',
       name: 'privacy',
       component: () => import('../views/PrivacyView.vue'),
     },
-    { path: '/about', redirect: '/tests' },
+    { path: '/about', redirect: '/' },
+    { path: '/tests', redirect: '/' },
     {
       path: '/:pathMatch(.*)*',
       redirect: { name: 'home' },

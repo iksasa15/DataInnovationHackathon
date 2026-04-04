@@ -59,7 +59,7 @@ const dashOffset = computed(() =>
 
 const scoreColor = computed(() => {
   const s = confidence.value
-  if (s >= 80) return '#10b981'
+  if (s >= 80) return '#53cd3f'
   if (s >= 50) return '#f59e0b'
   return '#ef4444'
 })
@@ -86,18 +86,18 @@ const scoreColor = computed(() => {
           <span class="live-stat-label">أخطاء</span>
         </div>
         <div class="live-stat">
-          <span class="live-stat-num">{{ semanticOnlyCount }}</span>
+          <span class="live-stat-num live-stat-semantic">{{ semanticOnlyCount }}</span>
           <span class="live-stat-label">دلالية</span>
         </div>
         <div class="live-stat">
-          <span class="live-stat-num">{{ affectedFieldsCount }}</span>
+          <span class="live-stat-num live-stat-fields">{{ affectedFieldsCount }}</span>
           <span class="live-stat-label">حقول متأثرة</span>
         </div>
       </div>
 
       <div class="live-gauge">
         <svg viewBox="0 0 100 100" class="live-gauge-svg" aria-hidden="true">
-          <circle cx="50" cy="50" r="40" fill="none" stroke="var(--color-border)" stroke-width="8" />
+          <circle cx="50" cy="50" r="40" fill="none" stroke="var(--live-ring)" stroke-width="8" />
           <circle
             cx="50"
             cy="50"
@@ -118,16 +118,26 @@ const scoreColor = computed(() => {
       </div>
 
       <p class="live-summary-line">{{ result.summary }}</p>
+      <p v-if="confirmedBlocks.length" class="live-jump">
+        <a href="#survey-confirmed-violations" class="live-jump-link">تجاوزات القواعد المؤكدة</a>
+      </p>
 
-      <section v-if="confirmedBlocks.length" class="live-section">
+      <section
+        v-if="confirmedBlocks.length"
+        id="survey-confirmed-violations"
+        class="live-section live-violations"
+      >
         <h3 class="live-h3">تجاوزات القواعد المؤكدة</h3>
         <ul class="live-rule-list">
           <li v-for="(b, i) in confirmedBlocks" :key="i + b.code" class="live-rule-item">
-            <div class="live-rule-tags">
+            <div class="live-rule-banner">
+              <span class="live-rule-badge">تنبيه قاعدة</span>
               <span class="live-code">{{ b.code }}</span>
-              <span class="live-code-desc">{{ b.shortLabel }}</span>
             </div>
-            <p class="live-rule-msg">{{ b.message }}</p>
+            <div class="live-rule-body">
+              <span class="live-code-desc">{{ b.shortLabel }}</span>
+              <p class="live-rule-msg">{{ b.message }}</p>
+            </div>
           </li>
         </ul>
       </section>
@@ -152,59 +162,66 @@ const scoreColor = computed(() => {
 
 <style scoped>
 .live-sidebar {
-  background: linear-gradient(180deg, var(--color-background-soft) 0%, var(--color-background) 100%);
-  border: 1px solid var(--color-border);
-  border-radius: 0.85rem;
-  padding: 1.1rem 1.15rem 1.25rem;
-  position: sticky;
-  top: 5rem;
-  max-height: calc(100vh - 6rem);
-  overflow-y: auto;
+  --live-purple: #322a82;
+  --live-purple-mid: #4137a8;
+  --live-purple-soft: #ebe8f7;
+  --live-ring: #e8ecf1;
+
+  background: #fff;
+  border: 1px solid #e8e8ef;
+  border-radius: 1rem;
+  padding: 1.15rem 1.15rem 1.25rem;
+  box-shadow: 0 6px 28px rgba(15, 23, 42, 0.07);
+  font-family: var(--font-app);
 }
 .live-sidebar-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px solid var(--color-border);
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #eef0f4;
 }
 .live-sidebar-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   font-weight: 800;
-  color: var(--color-heading);
+  color: var(--live-purple);
+  line-height: 1.35;
 }
 .mode-pill {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  padding: 0.2rem 0.45rem;
+  padding: 0.22rem 0.5rem;
   border-radius: 999px;
+  white-space: nowrap;
 }
 .mode-on {
-  background: rgba(16, 185, 129, 0.15);
-  color: #047857;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #81c784;
+  font-weight: 800;
 }
 .mode-off {
-  background: rgba(245, 158, 11, 0.15);
-  color: #92400e;
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffcc80;
 }
 
 .live-loading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.88rem;
-  color: var(--color-text);
-  opacity: 0.85;
+  font-size: 0.86rem;
+  color: #475569;
   padding: 0.5rem 0;
 }
 .spinner {
   width: 1.25rem;
   height: 1.25rem;
-  border: 2px solid var(--color-border);
-  border-top-color: #0e7490;
+  border: 2px solid #e2e8f0;
+  border-top-color: var(--live-purple);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -217,67 +234,87 @@ const scoreColor = computed(() => {
 .live-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
 }
 .live-stat {
   text-align: center;
-  padding: 0.45rem 0.25rem;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 0.45rem;
+  padding: 0.55rem 0.25rem;
+  background: #fff;
+  border: 1px solid #e8e8ef;
+  border-radius: 0.55rem;
 }
 .live-stat-num {
   display: block;
-  font-size: 1.15rem;
+  font-size: 1.12rem;
   font-weight: 800;
-  color: var(--color-heading);
   line-height: 1.2;
 }
 .live-stat-bad {
   color: #dc2626;
 }
+.live-stat-semantic {
+  color: var(--live-purple-mid);
+}
+.live-stat-fields {
+  color: #64748b;
+}
 .live-stat-label {
-  font-size: 0.68rem;
-  color: var(--color-text);
-  opacity: 0.8;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .live-gauge {
   display: flex;
   justify-content: center;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.7rem;
 }
 .live-gauge-svg {
   width: 112px;
   height: 112px;
 }
 .live-gauge-pct {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 .live-gauge-sub {
-  font-size: 0.65rem;
-  fill: var(--color-text);
-  opacity: 0.75;
+  font-size: 0.62rem;
+  fill: #64748b;
 }
 
 .live-summary-line {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.live-jump {
   margin: 0 0 0.85rem;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--color-text);
+  font-size: 0.78rem;
+}
+.live-jump-link {
+  color: #0288d1;
+  font-weight: 700;
+  text-decoration: none;
+}
+.live-jump-link:hover {
+  text-decoration: underline;
+}
+
+.live-violations {
+  scroll-margin-top: 5.5rem;
 }
 
 .live-section {
   margin-bottom: 0.85rem;
 }
 .live-h3 {
-  margin: 0 0 0.45rem;
-  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.76rem;
   font-weight: 800;
-  color: var(--color-heading);
-  text-transform: none;
+  color: var(--live-purple);
 }
 .live-rule-list {
   list-style: none;
@@ -285,60 +322,74 @@ const scoreColor = computed(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 .live-rule-item {
-  padding: 0.5rem 0.55rem;
-  background: rgba(59, 130, 246, 0.06);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 0.45rem;
+  overflow: hidden;
+  border-radius: 0.65rem;
+  border: 1px solid #e0dcf0;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(45, 38, 117, 0.08);
 }
-.live-rule-tags {
+.live-rule-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.25rem;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  background: linear-gradient(180deg, #f3f0fa 0%, var(--live-purple-soft) 100%);
+  border-bottom: 1px solid #e0dcf0;
+}
+.live-rule-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--live-purple);
+  background: #ede9f7;
+  padding: 0.18rem 0.45rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(65, 55, 168, 0.18);
 }
 .live-code {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 800;
   font-family: ui-monospace, monospace;
-  color: #1d4ed8;
-  background: rgba(59, 130, 246, 0.12);
-  padding: 0.12rem 0.35rem;
-  border-radius: 0.25rem;
+  color: var(--ga-primary);
+  margin-inline-start: auto;
+}
+.live-rule-body {
+  padding: 0.5rem 0.6rem 0.6rem;
 }
 .live-code-desc {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-heading);
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 0.25rem;
 }
 .live-rule-msg {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.45;
-  color: var(--color-text);
+  color: #475569;
 }
 
 .live-sug-list {
   margin: 0;
   padding-right: 1rem;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.5;
-  color: var(--color-text);
+  color: #475569;
 }
 
 .live-hybrid-note {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   margin: 0.5rem 0 0;
-  opacity: 0.9;
+  color: #64748b;
 }
 
 .live-empty {
-  font-size: 0.85rem;
-  line-height: 1.5;
-  color: var(--color-text);
-  opacity: 0.85;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #64748b;
 }
 </style>

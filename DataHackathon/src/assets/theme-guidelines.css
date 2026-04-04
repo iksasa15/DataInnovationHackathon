@@ -1,0 +1,32 @@
+/**
+ * ألوان من دليل الهوية — Guidelines V4-V1-AR (الهيئة العامة للإحصاء 2023)
+ * صفحة «الألوان الأساسية»: CMYK/RGB الرسمية
+ *
+ * - أساسي (بنفسجي): R65 G55 B168  →  #4137a8
+ * - أخضر: R83 G205 B63  →  #53cd3f
+ * - سماوي: R0 G178 B223  →  #00b2df
+ * - محايد (Pantone 535): R132 G146 B162  →  #8492a2
+ */
+:root {
+  --ga-primary: #4137a8;
+  --ga-primary-mid: #5247b8;
+  --ga-primary-dark: #322a82;
+  --ga-primary-darker: #28216a;
+  --ga-primary-soft: #ebe8f7;
+
+  --ga-green: #53cd3f;
+  --ga-green-dark: #3daf2e;
+  --ga-green-soft: #e8f8e4;
+
+  --ga-cyan: #00b2df;
+  --ga-cyan-soft: #dff6fc;
+
+  --ga-neutral: #8492a2;
+  --ga-neutral-light: #dde2e8;
+  --ga-surface: #f4f6f9;
+
+  /* شريط التنقل — تدرج من الأساسي */
+  --ga-sidebar-top: #3d3690;
+  --ga-sidebar-mid: #322a78;
+  --ga-sidebar-bottom: #282157;
+}

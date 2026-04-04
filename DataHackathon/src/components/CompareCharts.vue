@@ -15,14 +15,14 @@ import type { ChartData, ChartOptions } from 'chart.js'
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale, LinearScale, BarElement)
 
-ChartJS.defaults.font.family = "'Outfit', 'Segoe UI', system-ui, sans-serif"
+ChartJS.defaults.font.family = "'Frutiger LT Arabic', 'Segoe UI', system-ui, sans-serif"
 
 const donutBefore = computed<ChartData<'doughnut'>>(() => ({
   labels: ['تغطية', 'متبقي'],
   datasets: [
     {
       data: [42, 58],
-      backgroundColor: ['#64748b', '#e2e8f0'],
+      backgroundColor: ['#8492a2', '#dde2e8'],
       borderWidth: 0,
       hoverOffset: 6,
     },
@@ -34,7 +34,7 @@ const donutAfter = computed<ChartData<'doughnut'>>(() => ({
   datasets: [
     {
       data: [88, 12],
-      backgroundColor: ['#0e7490', 'rgba(6, 182, 212, 0.25)'],
+      backgroundColor: ['#4137a8', 'rgba(0, 178, 223, 0.28)'],
       borderWidth: 0,
       hoverOffset: 6,
     },
@@ -72,14 +72,14 @@ const barData = computed<ChartData<'bar'>>(() => ({
     {
       label: 'تقليدي',
       data: [100, 32, 28],
-      backgroundColor: '#64748b',
+      backgroundColor: '#8492a2',
       borderRadius: 6,
       maxBarThickness: 22,
     },
     {
       label: 'مع عين',
       data: [36, 94, 100],
-      backgroundColor: '#0e7490',
+      backgroundColor: '#4137a8',
       borderRadius: 6,
       maxBarThickness: 22,
     },
@@ -212,8 +212,8 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
 }
 
 .donut-item--highlight {
-  border-color: rgba(14, 165, 233, 0.35);
-  background: rgba(6, 182, 212, 0.06);
+  border-color: rgba(0, 178, 223, 0.35);
+  background: rgba(0, 178, 223, 0.08);
 }
 
 .donut-chart-wrap {
@@ -253,7 +253,7 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
   align-self: center;
   padding: 0.25rem 0;
   font-size: 1.35rem;
-  color: #0e7490;
+  color: var(--ga-primary);
   opacity: 0.55;
   line-height: 1;
 }

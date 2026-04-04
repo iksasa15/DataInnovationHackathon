@@ -117,7 +117,7 @@ class FormData(BaseModel):
     )
     apply_hybrid_rules: bool = Field(
         True,
-        description="إذا False: نموذج لغوي فقط دون دمج قواعد LFS (مثل وضع Gemini في Excel).",
+        description="إذا False: نموذج لغوي فقط دون دمج قواعد LFS (مثل وضع النموذج اللغوي في Excel).",
     )
 
 
@@ -126,7 +126,7 @@ class GeminiApiKeyPayload(BaseModel):
 
 
 class GeminiStatusResponse(BaseModel):
-    """رد التحقق من Gemini — يظهر في OpenAPI بدل schema نوع string."""
+    """رد التحقق من النموذج اللغوي — يظهر في OpenAPI بدل schema نوع string."""
 
     ok: bool
     message: str
@@ -164,7 +164,7 @@ async def health():
 
 @app.get("/api/gemini-status", response_model=GeminiStatusResponse)
 async def gemini_status():
-    """التحقق من اتصال Gemini بعمل طلب فعلي."""
+    """التحقق من اتصال النموذج اللغوي بعمل طلب فعلي."""
     from validator import check_gemini_connection
 
     return await check_gemini_connection()
@@ -195,7 +195,7 @@ def lfs_business_rules_catalog():
 
 @app.post("/api/gemini-api-key")
 async def set_gemini_key(payload: GeminiApiKeyPayload):
-    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي) — يُعطّل في الإنتاج بـ DISABLE_CLIENT_GEMINI_KEY."""
+    """تعيين مفتاح النموذج اللغوي من الواجهة (للسيشن الحالي) — يُعطّل في الإنتاج بـ DISABLE_CLIENT_GEMINI_KEY."""
     if not _client_can_post_gemini_key():
         return JSONResponse(
             status_code=403,
@@ -236,7 +236,7 @@ class BatchRecord(BaseModel):
 async def validate_batch(records: List[BatchRecord]):
     """
     تحقق دفعي بنفس حقول الاستمارة المبسّطة.
-    عند ضبط مفتاح LLM (Gemini / Groq / OpenAI) يُستخدم نفس مسار `/api/validate` (ذكي).
+    عند ضبط مفتاح LLM (نموذج لغوي مباشر / Groq / OpenAI) يُستخدم نفس مسار `/api/validate` (ذكي).
     بدون مفتاح يُستخدم التحقق السريع المحلي (`validate_form_quick`) — مكافئ لوضع العرض التوضيحي.
     """
     from validator import get_gemini_api_key, validate_form, validate_form_quick
@@ -301,7 +301,7 @@ async def validate_batch_dynamic(payload: DynamicBatchPayload):
 
 
 class BatchInsightsPayload(BaseModel):
-    """نتيجة تحليل دفعي: إحصائيات الصفوف + صفوف النتائج (لتقرير التكرار وGemini)."""
+    """نتيجة تحليل دفعي: إحصائيات الصفوف + صفوف النتائج (لتقرير التكرار والنموذج اللغوي)."""
 
     stats: Dict[str, Any]
     results: List[Dict[str, Any]]
@@ -317,7 +317,7 @@ async def batch_insights_report(payload: BatchInsightsPayload):
 @app.post("/api/admin/refresh-supabase-cache")
 async def refresh_supabase_cache(x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret")):
     """
-    يمسح التخزين المؤقت لمفتاح Gemini من Supabase ليُعاد الجلب فوراً بعد تعديل الجدول.
+    يمسح التخزين المؤقت لمفتاح النموذج اللغوي من Supabase ليُعاد الجلب فوراً بعد تعديل الجدول.
     يتطلب ضبط ADMIN_SECRET في بيئة الخادم وإرساله في الترويسة X-Admin-Secret.
     """
     secret = (os.getenv("ADMIN_SECRET") or "").strip()

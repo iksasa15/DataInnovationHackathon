@@ -104,6 +104,12 @@ export async function checkGeminiStatus(): Promise<GeminiStatus> {
   return response.json()
 }
 
+/** تسمية عربية للمزوّد في واجهة التشخيص (الخادم ما زال يرسل `gemini` كمعرّف). */
+function providerLabelAr(p: string | undefined): string {
+  if (p === 'gemini') return 'نموذج لغوي'
+  return p ?? '—'
+}
+
 /** نتيجة خطوة واحدة من تشخيص الخادم */
 export interface DiagnosticResult {
   id: string
@@ -114,7 +120,7 @@ export interface DiagnosticResult {
 }
 
 /**
- * يجري بالتتابع: صحة الخادم، OpenAPI، Gemini، Supabase.
+ * يجري بالتتابع: صحة الخادم، OpenAPI، النموذج اللغوي، Supabase.
  * يتوقف عن طلبات إضافية إن فشل الاتصال الأساسي بـ /api/health.
  */
 export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
@@ -127,7 +133,7 @@ export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
       id: 'health',
       label: 'صحة الخادم (/api/health)',
       ok: h.status === 'ok',
-      message: `الوضع: ${h.mode} · المزوّد: ${h.provider} · LLM جاهز: ${h.llm_configured ? 'نعم' : 'لا'} · Gemini من البيئة: ${h.gemini_from_env ? 'نعم' : 'لا'} · Supabase مفعّل: ${h.supabase_settings_enabled ? 'نعم' : 'لا'} · مفتاح من Supabase: ${h.gemini_from_supabase ? 'نعم' : 'لا'}`,
+      message: `الوضع: ${h.mode} · المزوّد: ${providerLabelAr(h.provider)} · LLM جاهز: ${h.llm_configured ? 'نعم' : 'لا'} · مفتاح نموذج لغوي من البيئة: ${h.gemini_from_env ? 'نعم' : 'لا'} · Supabase مفعّل: ${h.supabase_settings_enabled ? 'نعم' : 'لا'} · مفتاح من Supabase: ${h.gemini_from_supabase ? 'نعم' : 'لا'}`,
       durationMs: Math.round(performance.now() - tHealth),
     })
   } catch {
@@ -146,7 +152,7 @@ export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
     })
     results.push({
       id: 'gemini',
-      label: 'اتصال Gemini',
+      label: 'اتصال النموذج اللغوي',
       ok: false,
       message: 'تُخطى.',
     })
@@ -187,7 +193,7 @@ export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
     const g = await checkGeminiStatus()
     results.push({
       id: 'gemini',
-      label: 'اتصال Gemini (/api/gemini-status)',
+      label: 'اتصال النموذج اللغوي (/api/gemini-status)',
       ok: g.ok,
       message: `${g.message}${g.cached ? ' · (نتيجة من الكاش)' : ''}`,
       durationMs: Math.round(performance.now() - tGem),
@@ -195,7 +201,7 @@ export async function runFullDiagnostics(): Promise<DiagnosticResult[]> {
   } catch (e) {
     results.push({
       id: 'gemini',
-      label: 'اتصال Gemini (/api/gemini-status)',
+      label: 'اتصال النموذج اللغوي (/api/gemini-status)',
       ok: false,
       message: e instanceof Error ? e.message : 'فشل الطلب',
       durationMs: Math.round(performance.now() - tGem),

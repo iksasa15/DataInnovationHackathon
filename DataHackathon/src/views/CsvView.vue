@@ -523,7 +523,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             :disabled="isProcessing"
             @click="analyzeAll">
             <span v-if="isProcessing" class="btn-spinner"></span>
-            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بـ Gemini' }}
+            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بنموذج لغوي' }}
           </button>
           <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
             📥 تحميل الملف
@@ -589,9 +589,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       />
 
       <div v-if="batchResult?.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
-        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
+        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بنموذج لغوي</span>
         <span v-else-if="batchResult.provider === 'local'">
-          التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
+          التحليل تم محلياً. لتفعيل التحليل بنموذج لغوي: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
         </span>
       </div>
 

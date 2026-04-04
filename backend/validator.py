@@ -26,7 +26,7 @@ from lfs_metadata import (
 )
 from prompts_lfs import format_few_shot_lfs_block
 
-# مفتاح Gemini المعيّن من الواجهة (يُفضّل على .env للجلسة الحالية)
+# مفتاح النموذج اللغوي المعيّن من الواجهة (يُفضّل على .env للجلسة الحالية)
 _gemini_api_key_override: Optional[str] = None
 _gemini_status_cache: Optional[tuple[float, dict]] = None
 
@@ -44,7 +44,7 @@ def invalidate_gemini_status_cache() -> None:
 
 
 def set_gemini_api_key(api_key: Optional[str]) -> None:
-    """تعيين مفتاح Gemini من الواجهة (للسيشن الحالي)."""
+    """تعيين مفتاح النموذج اللغوي من الواجهة (للسيشن الحالي)."""
     global _gemini_api_key_override
     _gemini_api_key_override = (api_key or "").strip() or None
     invalidate_gemini_status_cache()
@@ -158,7 +158,7 @@ async def _call_gemini(form_data: dict) -> dict:
 
 
 async def check_gemini_connection() -> dict:
-    """التحقق من اتصال Gemini بعمل طلب بسيط. النتيجة تُخزَّن مؤقتاً لتقليل استهلاك الحصة."""
+    """التحقق من اتصال النموذج اللغوي بعمل طلب بسيط. النتيجة تُخزَّن مؤقتاً لتقليل استهلاك الحصة."""
     global _gemini_status_cache
 
     api_key = get_gemini_api_key()
@@ -180,7 +180,7 @@ async def check_gemini_connection() -> dict:
         )
         response = await asyncio.to_thread(model.generate_content, "قل: متصل")
         if response and response.text:
-            result = {"ok": True, "message": "متصل بـ Gemini بنجاح"}
+            result = {"ok": True, "message": "متصل بنموذج لغوي بنجاح"}
         else:
             result = {"ok": True, "message": "تم الاتصال"}
         _gemini_status_cache = (now, {k: v for k, v in result.items() if k != "cached"})
@@ -192,7 +192,7 @@ async def check_gemini_connection() -> dict:
         elif "429" in err or "quota" in err or "rate" in err:
             result = {
                 "ok": False,
-                "message": "تجاوز حد الاستخدام (Google). انتظر ساعات أو راجع الحصة في AI Studio — لا تكرر الطلب كثيراً.",
+                "message": "تجاوز حد الاستخدام للنموذج اللغوي. انتظر ساعات أو راجع الحصة في لوحة المزوّد — لا تكرر الطلب كثيراً.",
             }
         elif "network" in err or "connection" in err:
             result = {"ok": False, "message": "فشل الاتصال بالشبكة"}
@@ -675,7 +675,7 @@ async def validate_rows_dynamic(
     if not cleaned_records:
         return {"results": [], "stats": _compute_stats([]), "provider": "local"}
 
-    # قواعد الأعمال فقط — بدون Gemini ولا التحقق المحلي الموسّع
+    # قواعد الأعمال فقط — بدون نموذج لغوي ولا التحقق المحلي الموسّع
     if not use_llm:
         rules_results: list[dict] = []
         for rec in cleaned_records:
@@ -1037,7 +1037,7 @@ def _fallback_insights_report_ar(stats: dict[str, Any], agg: dict[str, Any]) -> 
             "rare_and_isolated_ar": "لا توجد حالات معزولة لأنها غير موجودة في التفاصيل.",
             "least_problematic_fields_ar": "لا يمكن ترتيب الحقول دون أخطاء مرصودة في التفاصيل.",
             "recommendations_ar": [
-                "إن كان التحليل بدون نموذج لغوي، جرّب التحليل بـ Gemini لاكتشاف تعارضات أدق.",
+                "إن كان التحليل بالقواعد فقط، جرّب تفعيل النموذج اللغوي لاكتشاف تعارضات أدق.",
                 "راجع عينة عشوائية من السجلات يدويًا للتحقق من جودة الإدخال.",
             ],
             "priority_fields_ar": [],
@@ -1117,12 +1117,12 @@ async def _call_gemini_insights_prompt(prompt: str) -> dict[str, Any]:
 
     if last_exc:
         raise last_exc
-    raise RuntimeError("Gemini insights: no model attempted")
+    raise RuntimeError("LLM insights: no model attempted")
 
 
 async def generate_batch_insights_report(stats: dict[str, Any], results: list[dict]) -> dict[str, Any]:
     """
-    تقرير نهاية التحليل: تكرار الأخطاء + تحليل عربي (Gemini أو احتياطي إحصائي).
+    تقرير نهاية التحليل: تكرار الأخطاء + تحليل عربي (نموذج لغوي أو احتياطي إحصائي).
     """
     agg = aggregate_dynamic_batch_errors(results)
 
@@ -1131,7 +1131,7 @@ async def generate_batch_insights_report(stats: dict[str, Any], results: list[di
         return {
             "ok": True,
             "provider": "fallback",
-            "message": "لا يوجد مفتاح Gemini — عُرض تقرير إحصائي.",
+            "message": "لا يوجد مفتاح للنموذج اللغوي — عُرض تقرير إحصائي.",
             "report": rep,
             "aggregates": agg,
         }
@@ -1162,7 +1162,7 @@ async def generate_batch_insights_report(stats: dict[str, Any], results: list[di
         return {
             "ok": True,
             "provider": "fallback",
-            "message": f"تعذّر توليد تقرير Gemini — عُرض تقرير إحصائي. ({str(exc)[:180]})",
+            "message": f"تعذّر توليد التقرير بالنموذج اللغوي — عُرض تقرير إحصائي. ({str(exc)[:180]})",
             "report": rep,
             "aggregates": agg,
         }

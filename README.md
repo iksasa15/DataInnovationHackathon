@@ -9,7 +9,7 @@
 | **الواجهة المنشورة (GitHub Pages)** | [https://iksasa15.github.io/DataInnovationHackathon/#/](https://iksasa15.github.io/DataInnovationHackathon/#/) |
 | **الاستمارة الحية** | […/#/survey](https://iksasa15.github.io/DataInnovationHackathon/#/survey) |
 | **تحليل Excel / CSV** | […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) |
-| **اختبارات (API، Swagger، تشخيص، Gemini)** | […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) |
+| **اختبارات (API، Swagger، تشخيص، نموذج لغوي)** | […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) |
 | **الـ API (مثال منشور)** | `https://datainnovationhackathon.onrender.com` — يُضبط عبر `DataHackathon/.env.production` (`VITE_API_URL`) وSecret في GitHub Actions إن لزم |
 
 > **مهم لـ GitHub Pages:** المصدر يجب أن يكون مجلد **`docs`** وليس جذر الفرع، وإلا يظهر نص README بدل التطبيق.  
@@ -44,7 +44,7 @@
 | رفع بيانات اختبار (Excel) مماثلة للتدريب | صفحة **تحليل الملف** — رفع Excel/CSV وتحقق دفعة عبر `/api/validate-batch-dynamic` |
 | استمارة حية (Live Form) | صفحة **الحارس الدلالي** — تحقق أثناء الإدخال (مع **debounce** قصير بعد التوقف عن الكتابة) |
 | ليس Excel وحده | الواجهة تدعم **الاثنين معاً** |
-| ربط LLM بمنظومة الجمع | FastAPI + برومبتات + Gemini (ومسارات بديلة) + طبقة قواعد hybrid |
+| ربط LLM بمنظومة الجمع | FastAPI + برومبتات + نموذج لغوي (ومسارات بديلة) + طبقة قواعد hybrid |
 | تسليم: README + نشر + فيديو | هذا الملف + جدول الروابط أعلاه + قسم [الفيديو](#video) |
 | مستودع خاص وإضافة المحكمين | حسب الدليل: **Private** ودعوة المحكمين قبل التقييم. المستودع الحالي على GitHub: [DataInnovationHackathon](https://github.com/iksasa15/DataInnovationHackathon) — عدّل الظهور (عام/خاص) حسب تعليمات اللجنة. |
 
@@ -58,7 +58,7 @@
 
 1. **واجهة جمع**: الواجهة (Vue 3 + Vite) ترسل بيانات الاستمارة أو صفوف Excel إلى **REST API** (FastAPI).
 2. **تحليل ذكي**: الخادم يبني **برومبتًا** يتضمن تعليمات عربية، **Few-Shot** (أمثلة مبسّطة + أمثلة بأسماء حقول LFS عند التحقق الديناميكي)، وقاموس **معاني الأعمدة** (ميتاداتا) عند توفرها.
-3. **مزوّد LLM**: يُفضّل **Google Gemini** لمسار Excel الديناميكي (مخرجات JSON). يمكن استخدام **Groq** أو **OpenAI** لمسار الاستمارة عند ضبط المتغيرات في `backend/.env`.
+3. **مزوّد LLM**: يُفضّل **نموذج لغوي مباشر** لمسار Excel الديناميكي (مخرجات JSON). يمكن استخدام **Groq** أو **OpenAI** لمسار الاستمارة عند ضبط المتغيرات في `backend/.env`.
 4. **طبقة مكمّلة (قواعد صريحة)**: يُحمَّل جدول **`LFS_Business_Rules.xlsx`** عبر `openpyxl`؛ القواعد المُنفَّذة برمجياً (مثل 2001، 2011–2017) تُرجِع `rule_id` و`message_en` من الملف. قائمة القواعد: `GET /api/lfs-business-rules` (اختياري: `LFS_BUSINESS_RULES_XLSX` لمسار الملف).
 5. **تقليص الأعمدة**: للجداول العريضة يُختار حد أقصى من الأعمدة ذات الأولوية + الأعمدة ذات القيم في الصف (`LFS_MAX_COLUMNS`).
 6. **استخدام بيانات التدريب**: **محاكاة واختبار** عبر الـ API والواجهة؛ لا يُفترض **تدريب نموذج** على بيانات الهيئة داخل هذا المستودع (متوافق مع منهجية الدليل).
@@ -171,7 +171,7 @@ curl -s http://127.0.0.1:8000/api/health
 1. افتح [الرئيسية](https://iksasa15.github.io/DataInnovationHackathon/#/).
 2. **استمارة حية:** […/#/survey](https://iksasa15.github.io/DataInnovationHackathon/#/survey) — املأ الحقول وانتظر ظهور نتيجة التحقق بعد توقف الإدخال قليلاً.
 3. **Excel / CSV:** […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) — اسحب الملف ثم نفّذ التحليل/التحقق للدفعة.
-4. **اختبارات تقنية:** […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) — عنوان الـ API الحالي، Swagger، `openapi.json`، فحص شامل، اتصال Gemini (إن وُجد).
+4. **اختبارات تقنية:** […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) — عنوان الـ API الحالي، Swagger، `openapi.json`، فحص شامل، اتصال النموذج اللغوي (إن وُجد).
 
 إن فشلت الطلبات من المتصفّح، راجع **CORS**: على خادم الـ API يجب أن يتضمن `ALLOWED_ORIGINS` عنوان الواجهة، مثال:
 
@@ -255,7 +255,7 @@ VITE_API_URL=https://your-api.example.com
 - **بناء الواجهة:** `VITE_HIDE_GEMINI_KEY_INPUT=true` لإخفاء حقل المفتاح (انظر `DataHackathon/.env.example`).
 - وفق الدليل: تزويد **رصيد كافٍ** للمفاتيح المدفوعة عبر قناة آمنة؛ **لا ترفع أسراراً إلى Git** (`backend/.env` في `.gitignore`).
 
-### تحديث مفتاح Gemini عبر Supabase (دون إعادة نشر الواجهة)
+### تحديث مفتاح النموذج اللغوي عبر Supabase (دون إعادة نشر الواجهة)
 
 1. نفّذ [`supabase/schema.sql`](supabase/schema.sql) في SQL Editor.  
 2. جدول `app_settings` → مفتاح `gemini_api_key` في `config_value`.  
@@ -291,8 +291,8 @@ VITE_API_URL=https://your-api.example.com
 DataInnovationHackathon/
 ├── .github/workflows/       # نشر الواجهة إلى docs/ (GitHub Pages)
 ├── supabase/
-│   └── schema.sql           # app_settings لمفتاح Gemini
-├── backend/                 # FastAPI — تحقق، Gemini، hybrid، ميتاداتا LFS
+│   └── schema.sql           # app_settings لمفتاح النموذج اللغوي
+├── backend/                 # FastAPI — تحقق، نموذج لغوي، hybrid، ميتاداتا LFS
 │   ├── main.py
 │   ├── supabase_settings.py
 │   ├── validator.py

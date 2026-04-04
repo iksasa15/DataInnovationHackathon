@@ -1,65 +1,165 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import HomeQualityChart from '../components/HomeQualityChart.vue'
+import { LOGO_AIN_SRC } from '../constants/branding'
+
+const summaryCards = [
+  {
+    icon: '🛡',
+    title: 'كشف التناقضات',
+    desc: 'تحليل دلالي للحقول مع قواعد LFS لاكتشاف التعارضات المعنوية والمنطقية.',
+    accent: 'purple',
+  },
+  {
+    icon: '📈',
+    title: 'الشفافية والاحترافية',
+    desc: 'تقارير واضحة وتكامل آمن مع واجهة API للفرق التقنية.',
+    accent: 'blue',
+  },
+  {
+    icon: '✅',
+    title: 'جودة السجلات',
+    desc: 'تنبيهات فورية ودرجات ثقة عند مخالفة قواعد الجودة.',
+    accent: 'green',
+  },
+  {
+    icon: '📋',
+    title: 'وضوح البيانات',
+    desc: 'ميتاداتا الحقول والأسئلة لسياق أوضح أثناء المراجعة.',
+    accent: 'teal',
+  },
+]
 
 const services = [
-  { icon: '🧠', title: 'التحليل الدلالي للحقول', desc: 'اكتشاف التناقضات المعنوية والمنطقية بين الحقول.' },
-  { icon: '📊', title: 'معالجة البيانات الجدولية', desc: 'رفع Excel أو CSV وتحليل الصفوف مع تقارير واضحة.' },
-  { icon: '🔌', title: 'التكامل عبر API', desc: 'ربط الواجهة بخادم FastAPI لتبادل البيانات بكفاءة.' },
-  { icon: '✅', title: 'فحص جودة الاستبيانات', desc: 'تحقق من اتساق الإجابات مع سياق الاستبيان.' },
-  { icon: '🔍', title: 'كشف الأخطاء والتكرار', desc: 'تنبيهات ودرجات ثقة واقتراحات تصحيحية.' },
+  {
+    icon: '🧠',
+    title: 'التحليل الدلالي للحقول',
+    desc: 'اكتشاف التناقضات المعنوية والمنطقية بين الحقول.',
+    accent: 'purple',
+  },
+  {
+    icon: '📊',
+    title: 'معالجة البيانات الجدولية',
+    desc: 'رفع Excel أو CSV وتحليل الصفوف مع تقارير واضحة.',
+    accent: 'cyan',
+  },
+  {
+    icon: '🔌',
+    title: 'التكامل عبر API',
+    desc: 'ربط الواجهة بخادم FastAPI لتبادل البيانات بكفاءة.',
+    accent: 'green',
+  },
+  {
+    icon: '✅',
+    title: 'فحص جودة الاستبيانات',
+    desc: 'تحقق من اتساق الإجابات مع سياق الاستبيان.',
+    accent: 'cyan',
+  },
+  {
+    icon: '🔍',
+    title: 'كشف الأخطاء والتكرار',
+    desc: 'تنبيهات ودرجات ثقة واقتراحات تصحيحية.',
+    accent: 'purple',
+  },
 ]
 
 const steps = [
-  { n: 1, title: 'رفع البيانات / الاستبيان', desc: 'استمارة حية أو ملف جدولي حسب احتياجك.' },
-  { n: 2, title: 'التحليل الآلي', desc: 'قواعد أعمال و/أو نموذج لغوي حسب الإعدادات.' },
-  { n: 3, title: 'عرض النتائج والتوصيات', desc: 'ملخص، تفاصيل لكل صف، وتصفية حسب الشدة.' },
+  { n: 1, title: 'رفع البيانات / الاستبيان', desc: 'استمارة حية أو ملف جدولي حسب احتياجك.', tone: 'purple' },
+  {
+    n: 2,
+    title: 'التحليل الآلي',
+    desc: 'قواعد أعمال و/أو نموذج لغوي مباشر حسب إعدادات الخادم.',
+    tone: 'blue',
+  },
+  { n: 3, title: 'عرض النتائج والتوصيات', desc: 'ملخص، تفاصيل لكل صف، وتصفية حسب الشدة.', tone: 'green' },
 ]
 
 const highlights = [
-  { icon: '⚡', title: 'سرعة المعالجة', desc: 'معالجة دقيقة وتغذية راجعة سريعة في الاستمارة.' },
-  { icon: '🎯', title: 'دقة التحليل', desc: 'دمج قواعد LFS مع تحليل دلالي عند التفعيل.' },
-  { icon: '👆', title: 'سهولة الاستخدام', desc: 'واجهة عربية ومسارات واضحة للاستبيان والملفات.' },
-  { icon: '⚙️', title: 'أتمتة كاملة', desc: 'تقليل المراجعة اليدوية المتكررة للبيانات المتشابهة.' },
+  { icon: '⚡', title: 'سرعة المعالجة', desc: 'معالجة دقيقة وتغذية راجعة سريعة في الاستمارة.', accent: 'purple' },
+  { icon: '🎯', title: 'دقة التحليل', desc: 'دمج قواعد LFS مع تحليل دلالي عند التفعيل.', accent: 'blue' },
+  { icon: '👆', title: 'سهولة الاستخدام', desc: 'واجهة عربية ومسارات واضحة للاستبيان والملفات.', accent: 'green' },
+  { icon: '⚙️', title: 'أتمتة كاملة', desc: 'تقليل المراجعة اليدوية المتكررة للبيانات المتشابهة.', accent: 'indigo' },
+]
+
+const flowNodes = [
+  { label: 'رفع', icon: '📤', tone: 'purple' },
+  { label: 'تحليل', icon: '🤖', tone: 'blue' },
+  { label: 'نتائج', icon: '📋', tone: 'green' },
+  { label: 'تدقيق', icon: '✔', tone: 'violet' },
 ]
 </script>
 
 <template>
   <div class="home">
-    <!-- Hero -->
-    <section class="hero">
-      <div class="hero-bg" />
-      <div class="hero-inner">
-        <p class="hero-brand">عين</p>
-        <h1 class="hero-title">منصة ذكية للتحقق من جودة البيانات والاستبيانات.</h1>
-        <p class="hero-desc">
-          منصة متكاملة لضمان جودة البيانات والاستبيانات، تعتمد على التحليل الدلالي للحقول، وتدعم معالجة
-          البيانات الجدولية، إضافة إلى التكامل مع خادم API لتمكين الربط وتبادل المعلومات بكفاءة.
+    <!-- بطاقات ملخص علوية -->
+    <section class="dash-summary" aria-label="ملخص المنصة">
+      <article
+        v-for="(c, i) in summaryCards"
+        :key="i"
+        class="summary-card"
+        :class="'summary-card--' + c.accent"
+      >
+        <span class="summary-card-icon" aria-hidden="true">{{ c.icon }}</span>
+        <h2 class="summary-card-title">{{ c.title }}</h2>
+        <p class="summary-card-desc">{{ c.desc }}</p>
+      </article>
+    </section>
+
+    <!-- بطل: رسم بياني + نص -->
+    <section class="dash-hero" aria-labelledby="hero-heading">
+      <div class="dash-hero-chart">
+        <div class="dash-hero-chart-head">
+          <h3 class="dash-hero-chart-title">مسار الجودة</h3>
+        </div>
+        <div class="dash-hero-chart-inner">
+          <HomeQualityChart />
+        </div>
+        <ul class="dash-hero-chart-legend" aria-label="مفتاح الألوان">
+          <li>
+            <span class="chart-legend-dot chart-legend-dot--purple" aria-hidden="true" />
+            بنفسجي — أساسي
+          </li>
+          <li>
+            <span class="chart-legend-dot chart-legend-dot--cyan" aria-hidden="true" />
+            سماوي — تمييز
+          </li>
+          <li>
+            <span class="chart-legend-dot chart-legend-dot--green" aria-hidden="true" />
+            أخضر — إيجابي
+          </li>
+        </ul>
+      </div>
+      <div class="dash-hero-copy">
+        <span class="hero-badge">
+          <span class="hero-badge-logo-chip" aria-hidden="true">
+            <img :src="LOGO_AIN_SRC" alt="" width="28" height="28" decoding="async" />
+          </span>
+          منصة عين
+        </span>
+        <h2 id="hero-heading" class="dash-hero-title">تحقق ذكي من جودة البيانات والاستبيانات</h2>
+        <p class="dash-hero-text">
+          دمج التحليل الدلالي مع قواعد أعمال LFS لاكتشاف التناقضات، مع دعم الملفات الجدولية وتقارير
+          نهاية التحليل والرسوم البيانية.
         </p>
-        <p class="hero-cta-label">ابدأ الآن</p>
-        <div class="hero-cards">
-          <RouterLink to="/survey" class="hero-card hero-card--primary">
-            <span class="hero-card-icon" aria-hidden="true">🛡</span>
-            <span class="hero-card-title">جرّب الاستبيان</span>
-            <span class="hero-card-text">استمارة LFS مع التحقق اللحظي والحارس الدلالي.</span>
-            <span class="hero-card-arrow">←</span>
-          </RouterLink>
-          <RouterLink to="/analysis" class="hero-card hero-card--secondary">
-            <span class="hero-card-icon" aria-hidden="true">📂</span>
-            <span class="hero-card-title">تحليل الملف</span>
-            <span class="hero-card-text">Excel أو CSV مع تحليل بالقواعد أو Gemini أو الاثنين.</span>
-            <span class="hero-card-arrow">←</span>
-          </RouterLink>
+        <div class="dash-hero-actions">
+          <RouterLink to="/survey" class="btn btn--primary">الحارس الدلالي</RouterLink>
+          <RouterLink to="/analysis" class="btn btn--outline">تحليل الملف</RouterLink>
         </div>
       </div>
     </section>
 
-    <!-- خدمات -->
-    <section class="section section--muted" aria-labelledby="services-heading">
+    <!-- خدمات المنصة -->
+    <section class="section section--surface" aria-labelledby="services-heading">
       <div class="section-inner">
         <h2 id="services-heading" class="section-title">خدمات المنصة</h2>
         <p class="section-sub">أدوات رئيسية لجودة البيانات في مسار واحد.</p>
         <div class="services-grid">
-          <article v-for="(s, i) in services" :key="i" class="service-card">
+          <article
+            v-for="(s, i) in services"
+            :key="i"
+            class="service-card"
+            :class="'service-card--accent-' + s.accent"
+          >
             <span class="service-icon" aria-hidden="true">{{ s.icon }}</span>
             <h3 class="service-title">{{ s.title }}</h3>
             <p class="service-desc">{{ s.desc }}</p>
@@ -76,7 +176,7 @@ const highlights = [
 
         <ol class="steps-list">
           <li v-for="st in steps" :key="st.n" class="step-item">
-            <span class="step-num">{{ st.n }}</span>
+            <span class="step-num" :class="'step-num--' + st.tone">{{ st.n }}</span>
             <div class="step-body">
               <h3 class="step-title">{{ st.title }}</h3>
               <p class="step-desc">{{ st.desc }}</p>
@@ -84,34 +184,31 @@ const highlights = [
           </li>
         </ol>
 
-        <!-- إنفوجرافيك بسيط -->
         <div class="how-infographic" aria-hidden="true">
           <div class="how-flow">
-            <div class="how-node">
-              <span class="how-node-icon">📤</span>
-              <span class="how-node-label">رفع</span>
-            </div>
-            <div class="how-connector" />
-            <div class="how-node how-node--mid">
-              <span class="how-node-icon">🤖</span>
-              <span class="how-node-label">تحليل</span>
-            </div>
-            <div class="how-connector" />
-            <div class="how-node">
-              <span class="how-node-icon">📋</span>
-              <span class="how-node-label">نتائج</span>
-            </div>
+            <template v-for="(node, idx) in flowNodes" :key="node.label">
+              <div class="how-node" :class="'how-node--' + node.tone">
+                <span class="how-node-icon">{{ node.icon }}</span>
+                <span class="how-node-label">{{ node.label }}</span>
+              </div>
+              <div v-if="idx < flowNodes.length - 1" class="how-connector" />
+            </template>
           </div>
         </div>
       </div>
     </section>
 
     <!-- ماذا يميز المنصة -->
-    <section class="section section--muted" aria-labelledby="highlights-heading">
+    <section class="section section--surface" aria-labelledby="highlights-heading">
       <div class="section-inner">
         <h2 id="highlights-heading" class="section-title">ماذا يميز المنصة؟</h2>
         <div class="highlights-grid">
-          <article v-for="(h, i) in highlights" :key="i" class="highlight-card">
+          <article
+            v-for="(h, i) in highlights"
+            :key="i"
+            class="highlight-card"
+            :class="'highlight-card--' + h.accent"
+          >
             <span class="highlight-icon" aria-hidden="true">{{ h.icon }}</span>
             <h3 class="highlight-title">{{ h.title }}</h3>
             <p class="highlight-desc">{{ h.desc }}</p>
@@ -120,7 +217,6 @@ const highlights = [
       </div>
     </section>
 
-    <!-- تذييل معلومات -->
     <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-col">
@@ -135,13 +231,15 @@ const highlights = [
           <ul class="footer-links">
             <li><RouterLink to="/survey">الحارس الدلالي — الاستبيان</RouterLink></li>
             <li><RouterLink to="/analysis">تحليل الملفات الجدولية</RouterLink></li>
-            <li><RouterLink to="/tests">اختبارات واتصال API</RouterLink></li>
             <li><RouterLink to="/privacy">سياسة الخصوصية</RouterLink></li>
           </ul>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© {{ new Date().getFullYear() }} عين — منصة التحقق من جودة البيانات والاستبيانات.</p>
+        <div class="footer-mark" aria-hidden="true">
+          <img :src="LOGO_AIN_SRC" alt="" width="22" height="22" decoding="async" />
+        </div>
+        <p>© {{ new Date().getFullYear() }} عين — لوحة التحقق من جودة البيانات والاستبيانات.</p>
       </div>
     </footer>
   </div>
@@ -149,239 +247,386 @@ const highlights = [
 
 <style scoped>
 .home {
-  min-height: 100vh;
-  font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100%;
+  padding: 1.25rem 1.25rem 2rem;
+  font-family: var(--font-app);
+  background: #f1f5f9;
 }
 
-/* Hero */
-.hero {
-  position: relative;
-  padding: 2.5rem 1.25rem 3.5rem;
-  overflow: hidden;
-}
-
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(14, 165, 233, 0.18) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 35% at 90% 40%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
-    var(--color-background);
-}
-
-.hero-inner {
-  position: relative;
-  max-width: 52rem;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.hero-brand {
-  margin: 0 0 0.75rem;
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #0e7490;
-}
-
-.hero-title {
-  margin: 0 0 1.25rem;
-  font-size: clamp(1.35rem, 4vw, 1.85rem);
-  font-weight: 800;
-  line-height: 1.45;
-  color: var(--color-heading);
-}
-
-.hero-desc {
-  margin: 0 auto 1.75rem;
-  max-width: 44rem;
-  font-size: 1.02rem;
-  line-height: 1.85;
-  color: var(--color-text);
-  opacity: 0.92;
-}
-
-.hero-cta-label {
-  margin: 0 0 1rem;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(1.65rem, 4.5vw, 2.15rem);
-  font-weight: 700;
-  font-style: italic;
-  letter-spacing: 0.02em;
-  color: #0e7490;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.hero-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-  max-width: 40rem;
-  margin: 0 auto;
-}
-
-@media (min-width: 640px) {
-  .hero-cards {
-    grid-template-columns: 1fr 1fr;
-    max-width: 44rem;
+@media (min-width: 1100px) {
+  .home {
+    padding: 1.5rem 2rem 2.5rem;
   }
 }
 
-.hero-card {
-  position: relative;
+/* ملخص علوي */
+.dash-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  margin-bottom: 1.35rem;
+}
+
+@media (min-width: 640px) {
+  .dash-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .dash-summary {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+}
+
+.summary-card {
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: #fff;
+  border: 1px solid #e8e8ef;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  border-top: 4px solid #cbd5e1;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.summary-card:hover {
+  box-shadow: 0 8px 28px rgba(45, 31, 69, 0.1);
+  transform: translateY(-2px);
+}
+
+.summary-card--purple {
+  border-top-color: var(--ga-primary);
+}
+.summary-card--blue {
+  border-top-color: var(--ga-cyan);
+}
+.summary-card--green {
+  border-top-color: var(--ga-green);
+}
+.summary-card--teal {
+  border-top-color: var(--ga-cyan);
+}
+
+.summary-card-icon {
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.summary-card-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.summary-card-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+/* بطل */
+.dash-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  align-items: stretch;
+}
+
+@media (min-width: 960px) {
+  .dash-hero {
+    grid-template-columns: 1.05fr 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.dash-hero-chart {
+  background: #fff;
+  border-radius: 1.25rem;
+  border: 1px solid #e8e8ef;
+  padding: 1.1rem 1.15rem 1rem;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+}
+
+.dash-hero-chart-head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: right;
-  padding: 1.35rem 1.25rem 1.5rem;
-  border-radius: 0.85rem;
-  text-decoration: none;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-background-soft);
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-  color: inherit;
-}
-
-.hero-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(14, 116, 144, 0.12);
-  border-color: rgba(14, 165, 233, 0.35);
-}
-
-.hero-card--primary {
-  border-color: rgba(14, 165, 233, 0.45);
-  background: linear-gradient(165deg, rgba(6, 182, 212, 0.09) 0%, var(--color-background-soft) 55%);
-}
-
-.hero-card--secondary {
-  background: var(--color-background-soft);
-}
-
-.hero-card-icon {
-  font-size: 1.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.hero-card-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-heading);
+  justify-content: flex-end;
   margin-bottom: 0.35rem;
 }
 
-.hero-card-text {
-  font-size: 0.88rem;
-  line-height: 1.55;
-  color: var(--color-text);
-  opacity: 0.88;
+.dash-hero-chart-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ga-primary-dark);
+  letter-spacing: 0.02em;
 }
 
-.hero-card-arrow {
-  position: absolute;
-  bottom: 1rem;
-  left: 1rem;
-  font-size: 1.25rem;
-  color: #0e7490;
-  opacity: 0.85;
+.dash-hero-chart-inner {
+  height: 240px;
 }
 
-/* Sections */
+.dash-hero-chart-legend {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.85rem 1.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.dash-hero-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chart-legend-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chart-legend-dot--purple {
+  background: var(--ga-primary-mid);
+}
+
+.chart-legend-dot--cyan {
+  background: var(--ga-cyan);
+}
+
+.chart-legend-dot--green {
+  background: var(--ga-green);
+}
+
+.dash-hero-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.25rem 0;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.45rem;
+  padding: 0.2rem 0.65rem 0.2rem 0.2rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--ga-primary-soft);
+  color: var(--ga-primary-dark);
+  margin-bottom: 0.65rem;
+}
+
+.hero-badge-logo-chip {
+  flex-shrink: 0;
+  width: 1.85rem;
+  height: 1.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 0.12rem;
+  box-sizing: border-box;
+}
+
+.hero-badge-logo-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.dash-hero-title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-weight: 800;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+.dash-hero-text {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: #475569;
+}
+
+.dash-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.35rem;
+  border-radius: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, var(--ga-primary-dark), var(--ga-primary-mid));
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 14px rgba(65, 55, 168, 0.35);
+}
+
+.btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn--outline {
+  background: #fff;
+  color: var(--ga-cyan);
+  border: 2px solid var(--ga-cyan);
+}
+
+.btn--outline:hover {
+  background: var(--ga-cyan-soft);
+}
+
+/* أقسام */
 .section {
-  padding: 3rem 1.25rem;
+  padding: 2.25rem 0;
 }
 
-.section--muted {
-  background: linear-gradient(180deg, rgba(6, 182, 212, 0.05) 0%, transparent 100%);
+.section--surface {
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  padding: 2rem 0;
+  margin-bottom: 0;
+  box-shadow: none;
 }
 
 .section-inner {
-  max-width: 56rem;
+  max-width: 72rem;
   margin: 0 auto;
 }
 
 .section-title {
   margin: 0 0 0.5rem;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 800;
   text-align: center;
-  color: var(--color-heading);
+  color: #1e293b;
 }
 
 .section-sub {
-  margin: 0 0 2rem;
+  margin: 0 0 1.75rem;
   text-align: center;
-  font-size: 0.95rem;
-  color: var(--color-text);
-  opacity: 0.82;
+  font-size: 0.9rem;
+  color: #64748b;
 }
 
 .section-sub--en {
-  margin: -0.25rem 0 1.75rem;
-  font-size: 0.85rem;
+  margin: -0.25rem 0 1.5rem;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #0e7490;
-  opacity: 0.9;
+  color: var(--ga-primary);
 }
 
-/* Services */
 .services-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .services-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .services-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.85rem;
+  }
 }
 
 .service-card {
-  padding: 1.15rem 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  padding: 1.05rem 1rem 1.05rem 1.1rem;
+  border-radius: 0.85rem;
+  border: 1px solid #e8e8ef;
+  border-right: 3px solid var(--service-accent, var(--ga-primary));
+  background: #fff;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.service-card--accent-purple {
+  --service-accent: var(--ga-primary);
+}
+
+.service-card--accent-cyan {
+  --service-accent: var(--ga-cyan);
+}
+
+.service-card--accent-green {
+  --service-accent: var(--ga-green);
 }
 
 .service-card:hover {
-  border-color: rgba(14, 165, 233, 0.3);
-  box-shadow: 0 8px 24px rgba(14, 116, 144, 0.08);
+  box-shadow: 0 8px 28px rgba(45, 31, 69, 0.1);
+  transform: translateY(-2px);
 }
 
 .service-icon {
   display: block;
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.4rem;
+  margin-bottom: 0.4rem;
 }
 
 .service-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-heading);
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #0f172a;
   line-height: 1.35;
 }
 
 .service-desc {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.5;
-  color: var(--color-text);
-  opacity: 0.85;
+  color: #64748b;
 }
 
-/* Steps */
+/* خطوات */
 .steps-list {
   list-style: none;
-  margin: 0 0 2.5rem;
+  margin: 0 0 1.75rem;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 900px) {
   .steps-list {
     flex-direction: row;
     align-items: stretch;
-    gap: 1.25rem;
   }
   .step-item {
     flex: 1;
@@ -391,44 +636,55 @@ const highlights = [
 .step-item {
   display: flex;
   gap: 0.85rem;
-  padding: 1rem 1.1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-soft);
+  padding: 1.15rem 1.1rem;
+  border-radius: 1rem;
+  border: 1px solid #e8e8ef;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
 }
 
 .step-num {
   flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.35rem;
+  height: 2.35rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   font-weight: 800;
-  font-size: 1rem;
-  background: linear-gradient(145deg, #0e7490, #0891b2);
+  font-size: 0.95rem;
   color: #fff;
 }
 
+.step-num--purple {
+  background: linear-gradient(145deg, var(--ga-primary-dark), var(--ga-primary-mid));
+}
+.step-num--blue {
+  background: linear-gradient(145deg, #0095bc, var(--ga-cyan));
+}
+.step-num--green {
+  background: linear-gradient(145deg, var(--ga-green-dark), var(--ga-green));
+}
+
 .step-title {
-  margin: 0 0 0.25rem;
-  font-size: 1rem;
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: var(--color-heading);
+  color: #1e293b;
 }
 
 .step-desc {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   line-height: 1.55;
-  color: var(--color-text);
-  opacity: 0.88;
+  color: #64748b;
 }
 
-/* Infographic */
 .how-infographic {
-  padding: 1.5rem 0 0;
+  border: 2px dashed #cbd5e1;
+  border-radius: 1rem;
+  background: #f8fafc;
+  padding: 1.25rem 1rem;
 }
 
 .how-flow {
@@ -436,60 +692,74 @@ const highlights = [
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .how-node {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.85rem 1.1rem;
-  min-width: 5.5rem;
-  border-radius: 0.75rem;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  min-width: auto;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
-.how-node--mid {
-  background: linear-gradient(180deg, rgba(6, 182, 212, 0.12) 0%, var(--color-background-soft) 100%);
-  border-color: rgba(14, 165, 233, 0.35);
+.how-node--purple {
+  border-color: rgba(65, 55, 168, 0.25);
+  background: linear-gradient(180deg, #fff 0%, rgba(65, 55, 168, 0.08) 100%);
+}
+.how-node--blue {
+  border-color: rgba(0, 178, 223, 0.3);
+  background: linear-gradient(180deg, #fff 0%, rgba(0, 178, 223, 0.1) 100%);
+}
+.how-node--green {
+  border-color: rgba(83, 205, 63, 0.3);
+  background: linear-gradient(180deg, #fff 0%, rgba(83, 205, 63, 0.1) 100%);
+}
+.how-node--violet {
+  border-color: rgba(50, 42, 130, 0.35);
+  background: linear-gradient(180deg, #fff 0%, rgba(65, 55, 168, 0.12) 100%);
 }
 
 .how-node-icon {
-  font-size: 1.75rem;
+  font-size: 1.15rem;
 }
 
 .how-node-label {
   font-size: 0.78rem;
-  font-weight: 700;
-  color: #0e7490;
+  font-weight: 800;
+  color: var(--ga-primary-dark);
 }
 
 .how-connector {
-  width: 2rem;
-  height: 3px;
+  width: 1.5rem;
+  height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, #0e7490, #22d3ee);
+  background: linear-gradient(90deg, var(--ga-primary-mid), var(--ga-cyan));
   opacity: 0.65;
+  flex-shrink: 0;
 }
 
 @media (max-width: 520px) {
-  .how-connector {
-    width: 80%;
-    height: 3px;
-    margin: 0.25rem 0;
-  }
   .how-flow {
     flex-direction: column;
   }
+  .how-connector {
+    width: 3px;
+    height: 1.25rem;
+  }
 }
 
-/* Highlights */
+/* تمييزات */
 .highlights-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
+  gap: 0.85rem;
+  direction: rtl;
 }
 
 @media (min-width: 560px) {
@@ -506,45 +776,84 @@ const highlights = [
 
 .highlight-card {
   text-align: center;
-  padding: 1.35rem 1rem;
-  border-radius: 0.85rem;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
+  padding: 1.25rem 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid #e8e8ef;
+  background: #fff;
+  border-top: 4px solid #cbd5e1;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .highlight-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(14, 116, 144, 0.1);
+  box-shadow: 0 10px 28px rgba(45, 31, 69, 0.1);
+}
+
+.highlight-card--blue {
+  border-top-color: var(--ga-cyan);
+}
+.highlight-card--purple {
+  border-top-color: var(--ga-primary-mid);
+}
+.highlight-card--amber {
+  border-top-color: #f59e0b;
+}
+.highlight-card--green {
+  border-top-color: var(--ga-green);
+}
+.highlight-card--indigo {
+  border-top-color: var(--ga-primary-dark);
 }
 
 .highlight-icon {
-  font-size: 2rem;
+  font-size: 1.85rem;
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .highlight-title {
-  margin: 0 0 0.4rem;
-  font-size: 1rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
   font-weight: 700;
-  color: var(--color-heading);
+  color: #1e293b;
 }
 
 .highlight-desc {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.5;
-  color: var(--color-text);
-  opacity: 0.85;
+  color: #64748b;
 }
 
-/* Footer */
+/* تذييل */
 .site-footer {
-  border-top: 1px solid var(--color-border);
-  background: var(--color-background-soft);
+  position: relative;
+  margin-top: 2rem;
+  margin-inline: -1.25rem -1.25rem;
+  margin-bottom: -2rem;
   padding: 2.5rem 1.25rem 0;
-  margin-top: 1rem;
+  background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 48%, #0c1222 100%);
+  color: #e2e8f0;
+}
+
+.site-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ga-green), var(--ga-cyan));
+  border-radius: 0;
+}
+
+@media (min-width: 1100px) {
+  .site-footer {
+    margin-inline: -2rem -2rem;
+    margin-bottom: -2.5rem;
+    padding-inline: 2rem;
+  }
 }
 
 .footer-inner {
@@ -552,7 +861,7 @@ const highlights = [
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 1.75rem;
 }
 
 @media (min-width: 640px) {
@@ -562,18 +871,17 @@ const highlights = [
 }
 
 .footer-heading {
-  margin: 0 0 0.65rem;
-  font-size: 1rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: var(--color-heading);
+  color: #fff;
 }
 
 .footer-text {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   line-height: 1.65;
-  color: var(--color-text);
-  opacity: 0.88;
+  opacity: 0.85;
 }
 
 .footer-links {
@@ -583,28 +891,51 @@ const highlights = [
 }
 
 .footer-links li {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.45rem;
 }
 
 .footer-links a {
-  font-size: 0.9rem;
-  color: #0e7490;
+  font-size: 0.88rem;
+  color: #a5b4fc;
   text-decoration: none;
   font-weight: 500;
 }
 
 .footer-links a:hover {
+  color: #fff;
   text-decoration: underline;
 }
 
 .footer-bottom {
-  margin-top: 2rem;
-  padding: 1.25rem 1rem;
+  margin-top: 1.75rem;
+  padding: 1.25rem 1rem 1.75rem;
   text-align: center;
-  font-size: 0.8rem;
-  color: var(--color-text);
-  opacity: 0.65;
-  border-top: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.65);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.footer-bottom p {
+  margin: 0.5rem 0 0;
+}
+
+.footer-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.footer-mark img {
+  width: 1.35rem;
+  height: 1.35rem;
+  object-fit: contain;
+  display: block;
+}
 </style>

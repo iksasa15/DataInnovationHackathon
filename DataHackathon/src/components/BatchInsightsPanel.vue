@@ -15,7 +15,7 @@ import type { ChartData, ChartOptions } from 'chart.js'
 import type { BatchInsightsResponse, BatchStats } from '../services/api'
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale, LinearScale, BarElement)
-ChartJS.defaults.font.family = "'Outfit', 'Segoe UI', system-ui, sans-serif"
+ChartJS.defaults.font.family = "'Frutiger LT Arabic', 'Segoe UI', system-ui, sans-serif"
 
 const props = defineProps<{
   insightsLoading: boolean
@@ -40,7 +40,7 @@ const statusDonutData = computed<ChartData<'doughnut'>>(() => {
     datasets: [
       {
         data: [v, w, e],
-        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+        backgroundColor: ['#53cd3f', '#f59e0b', '#ef4444'],
         borderWidth: 0,
         hoverOffset: 4,
       },
@@ -74,7 +74,7 @@ const topFieldsBarData = computed<ChartData<'bar'>>(() => {
       {
         label: 'عدد إشارات الخطأ',
         data: rows.map((r) => r.error_mentions),
-        backgroundColor: '#0e7490',
+        backgroundColor: '#4137a8',
         borderRadius: 6,
         maxBarThickness: 22,
       },
@@ -90,7 +90,7 @@ const leastFieldsBarData = computed<ChartData<'bar'>>(() => {
       {
         label: 'عدد الإشارات (الأقل)',
         data: rows.map((r) => r.error_mentions),
-        backgroundColor: '#64748b',
+        backgroundColor: '#8b7fd4',
         borderRadius: 6,
         maxBarThickness: 22,
       },
@@ -201,7 +201,7 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
       <header class="batch-insights-head">
         <h3 class="batch-insights-title">تقرير نهاية التحليل</h3>
         <div class="batch-insights-badges">
-          <span v-if="insightsReport.provider === 'gemini'" class="tag-gemini">Gemini</span>
+          <span v-if="insightsReport.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
           <span v-else class="tag-insights-fallback">تحليل إحصائي</span>
         </div>
       </header>
@@ -338,7 +338,7 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
   width: 1.1rem;
   height: 1.1rem;
   border: 2px solid var(--color-border);
-  border-top-color: #0e7490;
+  border-top-color: var(--ga-primary);
   border-radius: 50%;
   animation: bi-spin 0.7s linear infinite;
 }
@@ -359,8 +359,8 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
 
 .batch-insights-article {
   padding: 1.1rem 1.2rem;
-  background: linear-gradient(145deg, rgba(14, 116, 144, 0.06), rgba(99, 102, 241, 0.05));
-  border: 1px solid rgba(14, 116, 144, 0.22);
+  background: linear-gradient(145deg, rgba(63, 61, 145, 0.08), rgba(99, 102, 241, 0.06));
+  border: 1px solid rgba(63, 61, 145, 0.2);
   border-radius: 0.75rem;
 }
 
@@ -416,7 +416,7 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
   border-radius: 0.65rem;
   background: var(--color-background);
   border: 1px solid var(--color-border);
-  border-right: 4px solid #0e7490;
+  border-right: 4px solid var(--ga-primary);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
@@ -449,7 +449,7 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
 }
 
 .summary-metric strong {
-  color: #0e7490;
+  color: var(--ga-primary);
   font-weight: 700;
 }
 
@@ -525,7 +525,7 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
   margin: 0 0 0.4rem;
   font-size: 0.82rem;
   font-weight: 700;
-  color: #0e7490;
+  color: var(--ga-primary-dark);
 }
 
 .batch-insights-body {

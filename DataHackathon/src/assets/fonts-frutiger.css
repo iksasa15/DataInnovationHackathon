@@ -1,0 +1,32 @@
+/* Frutiger LT Arabic — الملفات في مجلد `font/` بجذر المشروع */
+@font-face {
+  font-family: 'Frutiger LT Arabic';
+  src: url('../../font/FrutigerLTArabic45Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Frutiger LT Arabic';
+  src: url('../../font/FrutigerLTArabic55Roman.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Frutiger LT Arabic';
+  src: url('../../font/FrutigerLTArabic65Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Frutiger LT Arabic';
+  src: url('../../font/frutigerltarabic75black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}

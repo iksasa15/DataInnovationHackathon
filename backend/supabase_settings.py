@@ -1,6 +1,6 @@
 """
 قراءة إعدادات التطبيق من Supabase (جدول app_settings) عبر REST.
-يُستخدم لمفتاح Gemini القابل للتعديل من Table Editor دون إعادة نشر الخادم.
+يُستخدم لمفتاح النموذج اللغوي القابل للتعديل من Table Editor دون إعادة نشر الخادم.
 
 المتغيرات:
   SUPABASE_URL
@@ -176,14 +176,14 @@ def test_supabase_connection() -> dict:
                     "configured": True,
                     "table_ok": True,
                     "gemini_row_filled": True,
-                    "message": "الاتصال بـ Supabase ناجح، وصف مفتاح Gemini في الجدول غير فارغ.",
+                    "message": "الاتصال بـ Supabase ناجح، وصف مفتاح النموذج اللغوي في الجدول غير فارغ.",
                 }
             return {
                 "ok": True,
                 "configured": True,
                 "table_ok": True,
                 "gemini_row_filled": False,
-                "message": "الاتصال ناجح. عمود config_value للصف gemini_api_key فارغ — أضف مفتاح Gemini من Table Editor.",
+                "message": "الاتصال ناجح. عمود config_value للصف gemini_api_key فارغ — أضف مفتاح النموذج اللغوي من Table Editor.",
             }
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code

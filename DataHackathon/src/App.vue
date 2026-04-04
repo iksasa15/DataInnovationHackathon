@@ -1,89 +1,309 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { LOGO_AIN_SRC as logoSrc } from './constants/branding'
+
+const route = useRoute()
+const sidebarOpen = ref(false)
+
+watch(
+  () => route.path,
+  () => {
+    sidebarOpen.value = false
+  },
+)
+
+const pageTitle = computed(() => {
+  const n = route.name
+  if (n === 'home') return 'لوحة عين'
+  if (n === 'survey') return 'الحارس الدلالي — الاستبيان'
+  if (n === 'analysis') return 'تحليل الملف الجدولي'
+  if (n === 'privacy') return 'سياسة الخصوصية'
+  return 'عين'
+})
+
+const navItems = [
+  { to: '/', name: 'home', label: 'الرئيسية', icon: '📊' },
+  { to: '/survey', name: 'survey', label: 'الحارس الدلالي', icon: '🛡' },
+  { to: '/analysis', name: 'analysis', label: 'تحليل الملف', icon: '📂' },
+  { to: '/privacy', name: 'privacy', label: 'الخصوصية', icon: '🔒' },
+] as const
 </script>
 
 <template>
-  <div class="app">
-    <header class="app-header">
-      <RouterLink to="/" class="logo">عين</RouterLink>
-      <nav class="nav">
-        <RouterLink to="/">الرئيسية</RouterLink>
-        <RouterLink to="/survey" class="nav-highlight">🛡 الحارس الدلالي</RouterLink>
-        <RouterLink to="/analysis" class="nav-highlight">📂 تحليل الملف</RouterLink>
-        <RouterLink to="/tests">اختبارات</RouterLink>
-      </nav>
-    </header>
+  <div class="app-shell">
+    <div
+      class="sidebar-backdrop"
+      :class="{ 'sidebar-backdrop--on': sidebarOpen }"
+      aria-hidden="true"
+      @click="sidebarOpen = false"
+    />
 
-    <main class="app-main">
-      <RouterView />
-    </main>
+    <aside class="sidebar" :class="{ 'sidebar--open': sidebarOpen }" aria-label="القائمة الرئيسية">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo">
+          <img :src="logoSrc" alt="عين" class="sidebar-logo-img" width="40" height="40" decoding="async" />
+        </div>
+        <div class="sidebar-brand-text">
+          <span class="sidebar-title">عين</span>
+          <span class="sidebar-tagline">التحقق من جودة البيانات</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          class="sidebar-link"
+          :class="{ 'sidebar-link--active': route.name === item.name }"
+        >
+          <span class="sidebar-link-icon" aria-hidden="true">{{ item.icon }}</span>
+          {{ item.label }}
+        </RouterLink>
+      </nav>
+    </aside>
+
+    <div class="main-column">
+      <header class="topbar">
+        <button
+          type="button"
+          class="menu-toggle"
+          aria-label="فتح القائمة"
+          @click="sidebarOpen = true"
+        >
+          ☰
+        </button>
+        <div class="topbar-brand">
+          <div class="topbar-logo-chip" aria-hidden="true">
+            <img :src="logoSrc" alt="" class="topbar-logo-img" width="36" height="36" decoding="async" />
+          </div>
+          <h1 class="topbar-title">{{ pageTitle }}</h1>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <RouterView />
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.app {
+.app-shell {
   min-height: 100vh;
-  font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  flex-direction: row;
+  font-family: var(--font-app);
+  background: var(--ga-surface);
 }
 
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
+.main-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--ga-sidebar-top) 0%, var(--ga-sidebar-mid) 48%, var(--ga-sidebar-bottom) 100%);
+  color: #f1f5f9;
+  padding: 1.35rem 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.12);
+  z-index: 60;
+}
+
+.sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 2rem;
-  background: var(--color-background);
-  border-bottom: 1px solid var(--color-border);
-  backdrop-filter: blur(8px);
+  gap: 0.75rem;
+  padding: 0 1.15rem;
 }
 
-.logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  text-decoration: none;
-  letter-spacing: 0.02em;
-  color: #0e7490;
-}
-
-.logo:hover {
-  text-decoration: underline;
-}
-
-.nav {
+.sidebar-logo {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  border-radius: 0.65rem;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+  padding: 0.2rem;
+  box-sizing: border-box;
 }
 
-.nav a {
-  padding: 0.5rem 0.9rem;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--color-text);
+.sidebar-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.sidebar-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-tagline {
+  font-size: 0.72rem;
+  opacity: 0.78;
+  line-height: 1.3;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 0.65rem;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.55rem;
+  color: rgba(241, 245, 249, 0.88);
   text-decoration: none;
-  border-radius: 0.375rem;
-  transition: background 0.2s, color 0.2s;
-}
-
-.nav a:hover {
-  background: var(--color-background-soft);
-  color: #0e7490;
-}
-
-.nav a.router-link-active {
-  color: #0e7490;
-  background: rgba(6, 182, 212, 0.1);
-}
-
-.nav-highlight {
+  font-size: 0.92rem;
   font-weight: 600;
-  color: #0e7490 !important;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.sidebar-link--active {
+  background: linear-gradient(90deg, rgba(0, 178, 223, 0.28), rgba(65, 55, 168, 0.2));
+  color: #fff;
+  border-right: 3px solid var(--ga-cyan);
+}
+
+.sidebar-link-icon {
+  font-size: 1.1rem;
+  opacity: 0.95;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1;
+  direction: rtl;
+}
+
+.topbar-logo-chip {
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 0.2rem;
+  box-sizing: border-box;
+}
+
+.topbar-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.topbar-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #334155;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .menu-toggle {
+    display: flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 55;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .sidebar-backdrop--on {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .app-main {
   flex: 1;
+  min-height: 0;
 }
 </style>

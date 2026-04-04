@@ -1,7 +1,10 @@
+@import './fonts-frutiger.css';
+@import './theme-guidelines.css';
 @import './base.css';
 
 #app {
   width: 100%;
   min-height: 100vh;
   font-weight: normal;
+  font-family: var(--font-app);
 }

@@ -55,10 +55,10 @@ const showGeminiKeyInput = computed(() => {
 const geminiServerNote = computed(() => {
   const h = health.value
   if (h?.supabase_settings_enabled) {
-    return 'مفتاح Gemini يُدار من Supabase (جدول app_settings). عدّل config_value من Table Editor؛ التحديث يظهر خلال حوالي دقيقة أو بعد استدعاء مسح الكاش (انظر README).'
+    return 'مفتاح النموذج اللغوي يُدار من Supabase (جدول app_settings). عدّل config_value من Table Editor؛ التحديث يظهر خلال حوالي دقيقة أو بعد استدعاء مسح الكاش (انظر README).'
   }
   if (h?.gemini_from_env) {
-    return 'Gemini يعمل من مفتاح الخادم — غيّر GEMINI_API_KEY في الاستضافة دون إعادة بناء الواجهة.'
+    return 'النموذج اللغوي يعمل من مفتاح الخادم — غيّر GEMINI_API_KEY في الاستضافة دون إعادة بناء الواجهة.'
   }
   return ''
 })
@@ -111,7 +111,7 @@ async function saveGeminiKey() {
     <header class="tests-header">
       <h1 class="tests-title">اختبارات</h1>
       <p class="tests-lead">
-        عنوان الـ API، وثائق الواجهة، فحص شامل للخادم، واختبار اتصال Gemini — لاستخدام المطوّرين والتشغيل.
+        عنوان الـ API، وثائق الواجهة، فحص شامل للخادم، واختبار اتصال النموذج اللغوي — لاستخدام المطوّرين والتشغيل.
       </p>
     </header>
 
@@ -132,14 +132,14 @@ async function saveGeminiKey() {
 
     <section class="card" aria-labelledby="diag-heading">
       <h2 id="diag-heading" class="card-title">اختبار شامل</h2>
-      <p class="card-desc">فحص الاتصال، قاعدة البيانات، وGemini (إن وُجدت) من الواجهة.</p>
+      <p class="card-desc">فحص الاتصال، قاعدة البيانات، والنموذج اللغوي (إن وُجد) من الواجهة.</p>
       <button
         type="button"
         class="btn btn-diagnostics"
         :disabled="diagLoading"
         @click="runDiagnostics"
       >
-        {{ diagLoading ? 'جاري فحص الخادم…' : '🔍 تشغيل الفحص (API + قاعدة + Gemini)' }}
+        {{ diagLoading ? 'جاري فحص الخادم…' : '🔍 تشغيل الفحص (API + قاعدة + نموذج لغوي)' }}
       </button>
       <div
         v-if="diagnosticResults?.length"
@@ -172,15 +172,15 @@ async function saveGeminiKey() {
       </div>
     </section>
 
-    <section class="card" aria-labelledby="gemini-heading">
-      <h2 id="gemini-heading" class="card-title">اتصال Gemini</h2>
+    <section class="card" aria-labelledby="llm-connection-heading">
+      <h2 id="llm-connection-heading" class="card-title">اتصال النموذج اللغوي</h2>
       <p v-if="geminiServerNote" class="gemini-server-hint">{{ geminiServerNote }}</p>
       <div v-if="showGeminiKeyInput" class="gemini-api-row">
         <input
           v-model="geminiApiKey"
           type="password"
           class="input-gemini-api"
-          placeholder="مفتاح Gemini API (تطوير محلي)"
+          placeholder="مفتاح API للنموذج اللغوي (تطوير محلي)"
           autocomplete="off"
           @keydown.enter="saveGeminiKey"
         />
@@ -201,7 +201,7 @@ async function saveGeminiKey() {
         @click="verifyGemini"
       >
         <span v-if="geminiChecking" class="btn-gemini-spinner"></span>
-        {{ geminiChecking ? 'جاري التحقق…' : '🔗 التحقق من اتصال Gemini' }}
+        {{ geminiChecking ? 'جاري التحقق…' : '🔗 التحقق من اتصال النموذج اللغوي' }}
       </button>
       <Transition name="gemini-msg">
         <div
@@ -221,7 +221,7 @@ async function saveGeminiKey() {
   max-width: 40rem;
   margin: 0 auto;
   padding: 2rem 1.5rem 3rem;
-  font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-app);
 }
 
 .tests-header {

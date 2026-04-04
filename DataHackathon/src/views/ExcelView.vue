@@ -21,6 +21,7 @@ import type {
   LfsBusinessRuleRow,
   ValidationError,
 } from '../services/api'
+import { LOGO_AIN_SRC } from '../constants/branding'
 
 interface ValidationResult {
   confidence_score: number
@@ -43,7 +44,7 @@ const fileName = ref('')
 const columns = ref<string[]>([])
 const rows = ref<RowData[]>([])
 const batchResult = ref<BatchResult | null>(null)
-/** تقرير نهاية التحليل (تكرار الأخطاء + Gemini أو احتياطي إحصائي) */
+/** تقرير نهاية التحليل (تكرار الأخطاء + نموذج لغوي أو احتياطي إحصائي) */
 const insightsReport = ref<BatchInsightsResponse | null>(null)
 const insightsLoading = ref(false)
 const insightsError = ref<string | null>(null)
@@ -60,7 +61,7 @@ const severityFilterBtn = ref<SeverityFilterBtn>('all')
 const issueKindFilterBtn = ref<IssueKindFilterBtn>('all')
 const detailsModalRow = ref<number | null>(null)
 
-/** قواعد فقط | Gemini فقط | الاثنان معاً */
+/** قواعد فقط | نموذج لغوي فقط | الاثنان معاً */
 type AnalysisEngine = 'rules' | 'gemini' | 'both'
 const analysisEngine = ref<AnalysisEngine>('both')
 
@@ -204,11 +205,11 @@ const analyzeButtonLabel = computed(() => {
   if (isProcessing.value) return 'جارٍ التحليل…'
   if (batchResult.value) return '🔄 إعادة التحليل'
   if (analysisEngine.value === 'rules') return '⚙️ تحليل بالقواعد'
-  if (analysisEngine.value === 'gemini') return '🤖 تحليل بـ Gemini'
-  return '🔍 تحليل (Gemini + قواعد)'
+  if (analysisEngine.value === 'gemini') return '🤖 تحليل بنموذج لغوي'
+  return '🔍 تحليل (نموذج لغوي + قواعد)'
 })
 
-/** ملخص تنبيهات بأسباب (مثل تجربة التحليل بـ Gemini) — يظهر بعد كل تحليل ناجح */
+/** ملخص تنبيهات بأسباب (مثل التحليل بنموذج لغوي) — يظهر بعد كل تحليل ناجح */
 const analysisNotice = computed(() => {
   if (!batchResult.value || isProcessing.value) return null
   const br = batchResult.value
@@ -404,6 +405,25 @@ function processFile(file: File) {
   reader.readAsArrayBuffer(file)
 }
 
+const sampleLoading = ref(false)
+const SAMPLE_CSV_URL = `${import.meta.env.BASE_URL}lfs-sample-violations.csv`
+
+async function loadSampleFile() {
+  sampleLoading.value = true
+  analysisError.value = null
+  try {
+    const res = await fetch(SAMPLE_CSV_URL)
+    if (!res.ok) throw new Error('fetch failed')
+    const buf = await res.arrayBuffer()
+    const file = new File([buf], 'lfs-sample-violations.csv', { type: 'text/csv' })
+    processFile(file)
+  } catch {
+    analysisError.value = 'تعذّر تحميل الملف التجريبي. تأكد من وجود الملف في المشروع.'
+  } finally {
+    sampleLoading.value = false
+  }
+}
+
 async function analyzeAll() {
   if (!rows.value.length || !columns.value.length) return
   isProcessing.value = true
@@ -510,7 +530,7 @@ function rowClass(row: RowData) {
 }
 
 function scoreColor(score: number) {
-  if (score >= 80) return '#10b981'
+  if (score >= 80) return '#53cd3f'
   if (score >= 50) return '#f59e0b'
   return '#ef4444'
 }
@@ -628,12 +648,19 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 
 <template>
   <div class="excel-page">
-    <div class="page-head">
+    <header class="page-hero">
+      <div class="page-kicker-row">
+        <span class="page-kicker-logo-chip" aria-hidden="true">
+          <img :src="LOGO_AIN_SRC" alt="" width="28" height="28" decoding="async" />
+        </span>
+        <span class="page-kicker">منصة عين — تحليل الملف الجدولي</span>
+      </div>
       <h1 class="page-title">تحليل الملف</h1>
       <p class="page-desc">
-        ارفع ملف Excel أو CSV، ثم اختر <strong>نوع التحليل</strong> (قواعد الأعمال، Gemini، أو الاثنين معاً) واضغط <strong>تحليل</strong>. يُلوّن الخلايا ويُظهر التنبيهات. الملاحظات بالعربية حتى لو كانت البيانات بالإنجليزية.
+        ارفع ملف Excel أو CSV، ثم اختر <strong>نوع التحليل</strong> (قواعد الأعمال، نموذج لغوي، أو الاثنين معاً) واضغط
+        <strong>تحليل</strong>. يُلوّن الخلايا ويُظهر التنبيهات. الملاحظات بالعربية حتى لو كانت البيانات بالإنجليزية.
       </p>
-    </div>
+    </header>
 
     <!-- Upload zone: خانة واحدة لـ Excel و CSV -->
     <div v-if="!rows.length" class="upload-zone"
@@ -644,11 +671,22 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       <div class="upload-icon">📂</div>
       <p class="upload-title">اسحب ملف Excel أو CSV هنا</p>
       <p class="upload-sub">أو</p>
-      <label class="btn btn-primary upload-btn">
-        اختر ملفاً
-        <input type="file" accept=".xlsx,.xls,.csv" hidden @change="onFileInput" />
-      </label>
-      <p class="upload-note">يقبل: Excel (xlsx · xls) و CSV — البيانات بالإنجليزي أو العربي</p>
+      <div class="upload-actions">
+        <label class="btn btn-primary upload-btn">
+          اختر ملفاً
+          <input type="file" accept=".xlsx,.xls,.csv" hidden @change="onFileInput" />
+        </label>
+        <button
+          type="button"
+          class="btn btn-outline upload-sample"
+          :disabled="sampleLoading"
+          @click="loadSampleFile"
+        >
+          <span v-if="sampleLoading" class="btn-spinner btn-spinner--muted" />
+          {{ sampleLoading ? 'جارٍ التحميل…' : '📄 ملف تجريبي جاهز (تعارضات LFS)' }}
+        </button>
+      </div>
+      <p class="upload-note">يقبل: (xlsx · xls) Excel و CSV — البيانات بالإنجليزي أو العربي</p>
     </div>
 
     <!-- File loaded: preview + actions -->
@@ -697,7 +735,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
               :disabled="isProcessing"
               @click="analysisEngine = 'gemini'"
             >
-              Gemini
+              نموذج لغوي
             </button>
             <button
               type="button"
@@ -716,19 +754,19 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         {{ analysisError }}
       </div>
 
-      <!-- تنبيه بأسباب (نفس منطق التحليل بـ Gemini + القواعد) -->
+      <!-- تنبيه بأسباب (نفس منطق التحليل بنموذج لغوي + القواعد) -->
       <div
         v-if="analysisNotice && !analysisNotice.allClear"
         class="analysis-notice-card"
         role="status"
       >
         <div class="analysis-notice-head">
-          <span class="analysis-notice-icon">⚠️</span>
+          <span class="analysis-notice-icon" aria-hidden="true">⚠</span>
           <div>
             <h3 class="analysis-notice-title">نتيجة التحليل — تنبيهات</h3>
             <p class="analysis-notice-meta">
               {{ analysisNotice.totalErrors }} صف بحالة خطأ · {{ analysisNotice.totalWarnings }} تحذير
-              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">Gemini</span>
+              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
               <span v-else-if="batchResult?.provider === 'rules'" class="tag-rules">قواعد فقط</span>
               <span v-else-if="batchResult?.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
             </p>
@@ -801,7 +839,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       >
         <div class="severity-card severity-card--high">
           <span class="severity-card-num">{{ severityIssueTotals.high }}</span>
-          <span class="severity-card-label">تحذيرات حرجة</span>
+          <span class="severity-card-label">حرجة</span>
         </div>
         <div class="severity-card severity-card--medium">
           <span class="severity-card-num">{{ severityIssueTotals.medium }}</span>
@@ -831,12 +869,13 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           'provider-local': batchResult.provider === 'local',
         }"
       >
-        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بـ Gemini</span>
+        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بنموذج لغوي</span>
         <span v-else-if="batchResult.provider === 'rules'">
           ✓ تم التحليل بـ <strong>قواعد الأعمال</strong> فقط (LFS Business Rules) — دون استدعاء النموذج اللغوي.
         </span>
         <span v-else-if="batchResult.provider === 'local'">
-          التحليل تم محلياً. لتفعيل التحليل بـ Gemini: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
+          التحليل تم محلياً. لتفعيل النموذج اللغوي: أضف <code>GEMINI_API_KEY</code> (أو مفتاح المزوّد المفعّل) في ملف
+          <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
         </span>
       </div>
 
@@ -1095,51 +1134,147 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 
 <style scoped>
 .excel-page {
-  max-width: 1400px;
+  --ex-purple: var(--ga-primary);
+  --ex-purple-mid: var(--ga-primary-mid);
+  --ex-purple-soft: var(--ga-primary-soft);
+  --ex-surface: var(--ga-surface);
+  --ex-card: #ffffff;
+
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 2rem 2rem 4rem;
+  padding: 1.25rem 1rem 4rem;
+  font-family: var(--font-app);
+  background: var(--ex-surface);
 }
 
-.page-head { margin-bottom: 1.5rem; }
-.page-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 0.4rem;
+@media (min-width: 900px) {
+  .excel-page {
+    padding: 1.5rem 1.25rem 4.5rem;
+  }
 }
+
+.page-hero {
+  position: relative;
+  background: var(--ex-card);
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.35rem 1.35rem 1.25rem;
+  margin-bottom: 1.35rem;
+  box-shadow: 0 8px 32px rgba(45, 38, 117, 0.08);
+  overflow: hidden;
+}
+.page-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--ex-purple), var(--ga-green));
+  border-radius: 1rem 1rem 0 0;
+}
+
+.page-kicker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.page-kicker-logo-chip {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 0.15rem;
+  box-sizing: border-box;
+}
+
+.page-kicker-logo-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.page-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ex-purple);
+  background: var(--ex-purple-soft);
+}
+
+.page-title {
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+  color: var(--ex-purple);
+  margin: 0 0 0.5rem;
+  line-height: 1.35;
+}
+
 .page-desc {
-  color: var(--color-text);
-  opacity: 0.85;
-  font-size: 1rem;
+  margin: 0;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  max-width: 52rem;
 }
 
 /* Upload Zone */
 .upload-zone {
-  border: 2px dashed var(--color-border);
+  border: 2px dashed #c4b8e0;
   border-radius: 1rem;
-  padding: 4rem 2rem;
+  padding: 3.25rem 1.5rem;
   text-align: center;
-  transition: border-color 0.2s, background 0.2s;
-  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  cursor: default;
+  background: #faf9fc;
 }
 .upload-zone.dragging {
-  border-color: #0e7490;
-  background: rgba(6, 182, 212, 0.04);
+  border-color: var(--ex-purple-mid);
+  background: rgba(63, 61, 145, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(63, 61, 145, 0.12);
 }
-.upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+.upload-icon {
+  font-size: 2.75rem;
+  margin-bottom: 0.85rem;
+  opacity: 0.85;
+}
 .upload-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-heading);
-  margin-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.35rem;
 }
-.upload-sub { color: var(--color-text); opacity: 0.5; margin-bottom: 0.75rem; }
-.upload-btn { cursor: pointer; }
+.upload-sub {
+  color: #94a3b8;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+}
+.upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: center;
+}
+.upload-btn {
+  cursor: pointer;
+}
 .upload-note {
-  margin-top: 0.75rem;
-  font-size: 0.8rem;
-  color: var(--color-text);
-  opacity: 0.5;
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 
 /* Buttons */
@@ -1147,41 +1282,87 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.7rem 1.4rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  border-radius: 0.5rem;
+  padding: 0.7rem 1.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 0.55rem;
   cursor: pointer;
   border: 2px solid transparent;
   transition: all 0.2s;
   font-family: inherit;
   text-decoration: none;
 }
-.btn-primary { background: #0e7490; color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #0c6380; }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-ghost { background: transparent; color: var(--color-text); border-color: var(--color-border); }
-.btn-ghost:hover { background: var(--color-background-mute); }
-.btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--ex-purple) 0%, var(--ex-purple-mid) 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(45, 38, 117, 0.3);
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn-outline {
+  background: #fff;
+  color: var(--ex-purple-mid);
+  border-color: #c4b8e0;
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--ex-purple-mid);
+  background: #faf9fc;
+}
+.btn-outline:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-ghost {
+  background: #fff;
+  color: #334155;
+  border-color: #d1d5db;
+}
+.btn-ghost:hover {
+  background: #f8fafc;
+  border-color: var(--ex-purple-mid);
+  color: var(--ex-purple);
+}
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+}
 .btn-spinner {
-  width: 13px; height: 13px;
-  border: 2px solid rgba(255,255,255,0.4);
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.btn-spinner--muted {
+  border-color: #e2e8f0;
+  border-top-color: var(--ex-purple-mid);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Toolbar */
 .toolbar {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
+  gap: 0.75rem;
+  margin-bottom: 1.15rem;
+  padding: 1rem 1.15rem;
+  background: var(--ex-card);
+  border: 1px solid #e8e8ef;
+  border-radius: 0.9rem;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
 }
 .toolbar-main {
   display: flex;
@@ -1200,38 +1381,43 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .engine-label {
   font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-heading);
-  opacity: 0.9;
+  font-weight: 700;
+  color: var(--ex-purple);
 }
 .engine-btns {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 .engine-btn {
-  padding: 0.35rem 0.75rem;
+  padding: 0.45rem 0.95rem;
   font-size: 0.78rem;
+  font-weight: 600;
   font-family: inherit;
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  background: var(--color-background);
-  color: var(--color-text);
+  border: 1.5px solid #d8d4e8;
+  border-radius: 0.5rem;
+  background: #faf9fc;
+  color: #4338ca;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
 }
 .engine-btn:hover:not(:disabled) {
-  background: var(--color-background-mute);
+  background: #fff;
+  border-color: var(--ex-purple-mid);
 }
 .engine-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 .engine-btn-active {
-  background: rgba(14, 116, 144, 0.14);
-  border-color: #0e7490;
-  color: #0e7490;
-  font-weight: 600;
+  background: linear-gradient(135deg, var(--ex-purple) 0%, var(--ex-purple-mid) 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(45, 38, 117, 0.3);
 }
 .analysis-error-banner {
   margin: -0.25rem 0 1rem;
@@ -1307,8 +1493,8 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   font-size: 0.72rem;
   padding: 0.08rem 0.4rem;
   border-radius: 0.25rem;
-  background: rgba(14, 116, 144, 0.15);
-  color: #0e7490;
+  background: rgba(91, 33, 182, 0.12);
+  color: #5b21b6;
   vertical-align: middle;
 }
 .notice-en {
@@ -1329,7 +1515,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   padding-right: 1rem;
   list-style: none;
   font-size: 0.82rem;
-  color: #0e7490;
+  color: #5b21b6;
 }
 .suggestion-li { margin-bottom: 0.35rem; }
 
@@ -1361,11 +1547,13 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .file-icon { font-size: 1.1rem; }
 .file-name { font-weight: 600; color: var(--color-heading); font-size: 0.95rem; }
 .file-rows {
-  font-size: 0.78rem;
-  color: #0e7490;
-  background: rgba(6,182,212,0.1);
-  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ex-purple);
+  background: var(--ex-purple-soft);
+  padding: 0.2rem 0.55rem;
   border-radius: 9999px;
+  border: 1px solid rgba(63, 61, 145, 0.15);
 }
 .toolbar-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 
@@ -1380,21 +1568,55 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   .stats-bar { grid-template-columns: repeat(3, 1fr); }
 }
 .stat-card {
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
+  background: var(--ex-card);
+  border: 1px solid #e8e8ef;
+  border-radius: 0.75rem;
   padding: 0.9rem 1rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  border-top: 3px solid #cbd5e1;
 }
-.stat-num { font-size: 1.5rem; font-weight: 700; line-height: 1; }
-.stat-label { font-size: 0.78rem; color: var(--color-text); opacity: 0.7; }
-.stat-total .stat-num { color: var(--color-heading); }
-.stat-error .stat-num { color: #ef4444; }
-.stat-warning .stat-num { color: #f59e0b; }
-.stat-valid .stat-num { color: #10b981; }
+.stat-total {
+  border-top-color: var(--ex-purple-mid);
+}
+.stat-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.stat-total .stat-num {
+  color: var(--ex-purple);
+}
+.stat-error {
+  border-top-color: #ef4444;
+}
+.stat-error .stat-num {
+  color: #ef4444;
+}
+.stat-warning {
+  border-top-color: #f59e0b;
+}
+.stat-warning .stat-num {
+  color: #f59e0b;
+}
+.stat-valid {
+  border-top-color: #10b981;
+}
+.stat-valid .stat-num {
+  color: var(--ga-green);
+}
+.stat-avg {
+  border-top-color: var(--ga-cyan);
+}
 
 .severity-cards {
   display: grid;
@@ -1444,14 +1666,14 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   color: #d97706;
 }
 .severity-card--low {
-  border-color: rgba(107, 114, 128, 0.4);
-  background: linear-gradient(180deg, rgba(107, 114, 128, 0.1), var(--color-background-soft));
+  border-color: rgba(37, 99, 235, 0.35);
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.55), #fafbfc);
 }
 .severity-card--low .severity-card-num {
-  color: #4b5563;
+  color: #2563eb;
 }
 
-/* Provider notice (Gemini vs local) */
+/* Provider notice (نموذج لغوي vs محلي) */
 .provider-notice {
   padding: 0.65rem 1rem;
   border-radius: 0.5rem;
@@ -1483,7 +1705,12 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   font-family: inherit;
 }
 .tab:hover { background: var(--color-background-mute); }
-.tab-active { background: var(--color-background-mute); border-color: #0e7490; color: #0e7490; font-weight: 700; }
+.tab-active {
+  background: var(--ex-purple-soft);
+  border-color: var(--ex-purple-mid);
+  color: var(--ex-purple);
+  font-weight: 700;
+}
 .tab-error.tab-active { border-color: #ef4444; color: #ef4444; }
 .tab-warning.tab-active { border-color: #f59e0b; color: #f59e0b; }
 .tab-valid.tab-active { border-color: #10b981; color: #10b981; }
@@ -1493,10 +1720,10 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   flex-direction: column;
   gap: 0.65rem;
   margin-bottom: 0.85rem;
-  padding: 0.65rem 0.9rem;
-  background: var(--color-background-mute);
-  border: 1px solid var(--color-border);
-  border-radius: 0.55rem;
+  padding: 0.85rem 1rem;
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+  border-radius: 0.75rem;
 }
 .filter-toolbar-row {
   display: flex;
@@ -1540,9 +1767,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   background: var(--color-background-soft);
 }
 .filter-chip--on {
-  border-color: #0e7490;
-  background: rgba(6, 182, 212, 0.12);
-  color: #0e7490;
+  border-color: var(--ex-purple-mid);
+  background: var(--ex-purple-soft);
+  color: var(--ex-purple);
 }
 .filter-chip--sev-high.filter-chip--on {
   border-color: #ef4444;
@@ -1672,7 +1899,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   margin: 0 0 0.5rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #0e7490;
+  color: #2563eb;
 }
 .issue-card-kind-pill {
   display: inline-block;
@@ -1713,7 +1940,10 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .dot-high   { background: rgba(239,68,68,0.3); border: 1.5px solid #ef4444; }
 .dot-medium { background: rgba(245,158,11,0.3); border: 1.5px solid #f59e0b; }
-.dot-low    { background: rgba(107,114,128,0.2); border: 1.5px solid #6b7280; }
+.dot-low {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1.5px solid #6366f1;
+}
 .legend-tip { margin-right: auto; font-style: italic; opacity: 0.6; }
 
 /* Table */
@@ -1731,21 +1961,20 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   table-layout: auto;
 }
 .data-table thead {
-  background: var(--color-background-mute);
+  background: linear-gradient(90deg, var(--ex-purple) 0%, var(--ex-purple-mid) 100%);
   position: sticky;
   top: 0;
   z-index: 2;
 }
 .data-table th {
-  padding: 0.7rem 0.75rem;
+  padding: 0.75rem 0.8rem;
   text-align: right;
-  font-weight: 600;
-  color: var(--color-heading);
-  border-bottom: 1px solid var(--color-border);
-  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
   vertical-align: top;
-  /* خلفية لكل خلية حتى لا يختلط النص مع الصفوف عند sticky */
-  background: var(--color-background-mute);
+  background: transparent;
   box-sizing: border-box;
 }
 /* nowrap فقط للأعمدة الضيقة — لا تُفرض على رؤوس الحقول الطويلة */
@@ -1764,25 +1993,28 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .th-col-cat {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  color: var(--color-text);
-  opacity: 0.72;
+  color: rgba(255, 255, 255, 0.75);
   margin-bottom: 0.2rem;
   line-height: 1.25;
 }
 .th-col-short {
   display: block;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-heading);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff;
 }
-.th-num, .td-num {
+.th-num,
+.td-num {
   text-align: center;
   width: 44px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.76rem;
+}
+.data-table tbody .td-num {
   color: var(--color-text);
   opacity: 0.45;
-  font-size: 0.78rem;
 }
 .th-details, .td-details {
   text-align: center;
@@ -1794,16 +2026,19 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .btn-details {
   padding: 0.35rem 0.65rem;
   font-size: 0.8rem;
-  font-weight: 500;
-  color: #0e7490;
-  background: rgba(6, 182, 212, 0.12);
-  border: 1px solid rgba(6, 182, 212, 0.4);
-  border-radius: 0.375rem;
+  font-weight: 600;
+  color: var(--ex-purple);
+  background: var(--ex-purple-soft);
+  border: 1px solid rgba(63, 61, 145, 0.35);
+  border-radius: 0.4rem;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.2s, border-color 0.2s;
 }
-.btn-details:hover { background: rgba(6, 182, 212, 0.2); border-color: #0e7490; }
+.btn-details:hover {
+  background: rgba(91, 33, 182, 0.14);
+  border-color: var(--ex-purple-mid);
+}
 .btn-details.has-issues { color: #b45309; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
 .btn-details.has-issues:hover { background: rgba(245, 158, 11, 0.2); }
 .details-ok { color: #047857; font-weight: 500; margin: 0 0 0.5rem 0; }
@@ -1813,7 +2048,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .details-label { display: block; font-size: 0.75rem; color: var(--color-heading); margin-bottom: 0.25rem; }
 .details-list { margin: 0; padding-right: 1.25rem; list-style: disc; }
 .details-list li { margin-bottom: 0.25rem; }
-.details-suggestions { color: #0e7490; }
+.details-suggestions {
+  color: #047857;
+}
 .th-score, .td-score { text-align: center; width: 90px; }
 
 /* نافذة التفاصيل */
@@ -1844,24 +2081,32 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   align-items: center;
   justify-content: space-between;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-mute);
+  border-bottom: 1px solid #e8e8ef;
+  background: linear-gradient(90deg, var(--ex-purple) 0%, var(--ex-purple-mid) 100%);
 }
-.details-modal-head h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-heading); }
+.details-modal-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+}
 .details-modal-close {
   width: 28px;
   height: 28px;
   padding: 0;
   font-size: 1.25rem;
   line-height: 1;
-  color: var(--color-text);
-  background: transparent;
-  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 0.375rem;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
 }
-.details-modal-close:hover { background: var(--color-background-soft); color: var(--color-heading); }
+.details-modal-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
 .details-modal-body {
   padding: 1rem;
   overflow-y: auto;
@@ -1948,8 +2193,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 .cell-input:hover { border-color: var(--color-border); }
 .cell-input:focus {
   outline: none;
-  border-color: #0e7490;
+  border-color: var(--ex-purple-mid);
   background: var(--color-background);
+  box-shadow: 0 0 0 2px rgba(63, 61, 145, 0.12);
 }
 .btn-download {
   background: var(--color-background-mute);
@@ -1958,11 +2204,13 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .btn-download:hover { background: var(--color-background-soft); }
 .btn-export {
-  background: #047857;
+  background: var(--ga-green-dark);
   color: #fff;
   border: none;
 }
-.btn-export:hover { background: #065f46; }
+.btn-export:hover {
+  background: #35962a;
+}
 /* Error cell colors */
 .cell-error-high {
   background: rgba(239, 68, 68, 0.12) !important;

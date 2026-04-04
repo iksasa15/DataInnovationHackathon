@@ -5,13 +5,13 @@ import { validateForm, checkHealth } from '../services/api'
 import type { FormData, HealthStatus, ValidationError, ValidationResult } from '../services/api'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
 import { resolveLfsTableColumnHeader } from '../utils/lfsTableColumnHeader'
+import { LOGO_AIN_SRC } from '../constants/branding'
 
 /**
  * حقول بأسماء أعمدة LFS كما في `MetaData_LFS_Training_Dataset.xlsx` وملفات Excel/CSV للمسح.
  * تُحوَّل داخلياً إلى `FormData` لمسار `/api/validate`.
  */
 interface LfsLiveSurveyFields {
-  f_m_id: string
   gender: string
   age: number | null
   nationality: string
@@ -34,7 +34,6 @@ interface LfsLiveSurveyFields {
 
 function emptyLfsSurvey(): LfsLiveSurveyFields {
   return {
-    f_m_id: '',
     gender: '',
     age: null,
     nationality: '',
@@ -56,7 +55,7 @@ function emptyLfsSurvey(): LfsLiveSurveyFields {
 const form = ref<LfsLiveSurveyFields>(emptyLfsSurvey())
 const lfsMeta = ref<Record<string, string>>({})
 
-/** قواعد فقط | Gemini فقط | الاثنان — مطابق لـ ExcelView */
+/** قواعد فقط | نموذج لغوي فقط | الاثنان — مطابق لـ ExcelView */
 type AnalysisEngine = 'rules' | 'gemini' | 'both'
 const analysisEngine = ref<AnalysisEngine>('both')
 
@@ -68,7 +67,6 @@ function lfsSurveyToApiPayload(s: LfsLiveSurveyFields): FormData {
     years_experience = Math.max(0, cy - y)
   }
   return {
-    name: s.f_m_id?.trim() || undefined,
     age: s.age ?? undefined,
     gender: s.gender || undefined,
     nationality: s.nationality?.trim() || undefined,
@@ -101,7 +99,7 @@ const analyzeModeHint = computed(() => {
     case 'gemini':
       return 'تحليل دلالي فقط — بدون دمج قواعد LFS الصريحة.'
     default:
-      return 'Gemini (أو المزوّد المتاح) + قواعد الأعمال.'
+      return 'نموذج لغوي (حسب المزوّد في الخادم) + قواعد الأعمال.'
   }
 })
 
@@ -161,8 +159,6 @@ function fieldKeysForError(e: ValidationError): string[] {
     add('nationality')
   } else if (f.includes('gender')) {
     add('gender')
-  } else if (f.includes('fmid') || f === 'name') {
-    add('f_m_id')
   }
 
   const msg = (e.message || '').toLowerCase()
@@ -194,10 +190,89 @@ function fieldKeysForError(e: ValidationError): string[] {
   return [...out]
 }
 
-function inlineErrorsFor(fieldKey: string): ValidationError[] {
-  const vr = validationResult.value
-  if (!vr?.errors?.length) return []
-  return vr.errors.filter((e) => fieldKeysForError(e).includes(fieldKey))
+/** أعلى عتبة مؤهل لكل قاعدة عمر↔مؤهل (2011 ثانوي+ … 2016 دكتوراه) */
+function effectiveRuleTier(e: ValidationError): number | null {
+  if (e.rule_code === 'BR_4008' || e.rule_id === 2013) return 4
+  switch (e.rule_id) {
+    case 2011:
+      return 2
+    case 2012:
+      return 3
+    case 2015:
+      return 5
+    case 2016:
+      return 6
+    default:
+      return null
+  }
+}
+
+function isAgeEducationRuleError(e: ValidationError): boolean {
+  const id = e.rule_id
+  if (id === 2011 || id === 2012 || id === 2013 || id === 2015 || id === 2016) return true
+  if (e.rule_code === 'BR_4008') return true
+  const m = (e.message || '').toLowerCase()
+  return (
+    (m.includes('عمر') &&
+      (m.includes('مؤهل') ||
+        m.includes('ثانوي') ||
+        m.includes('دبلوم') ||
+        m.includes('بكالور') ||
+        m.includes('ماجستير') ||
+        m.includes('دكتور'))) ||
+    (m.includes('الحد الأدنى') && m.includes('مؤهل')) ||
+    (m.includes('بكالوريوس فأعلى') && m.includes('عمر'))
+  )
+}
+
+const EDUC_RANK_ORDER = ['ابتدائي', 'متوسط', 'ثانوي', 'دبلوم', 'بكالوريوس', 'ماجستير', 'دكتوراه'] as const
+
+function userEducationRank(q301: string): number | null {
+  const i = EDUC_RANK_ORDER.indexOf(q301.trim() as (typeof EDUC_RANK_ORDER)[number])
+  return i >= 0 ? i : null
+}
+
+/**
+ * عند تعدّد قواعد العمر↔المؤهل (مثلاً 15 سنة وبكالوريوس يُطلق 2011 و2012 و2013)،
+ * نعرض رسالة واحدة: أشد قاعدة لا تتجاوز مستوى المؤهل المختار (مثلاً بكالوريوس → 2013 فقط لا 2015/2016).
+ */
+function pickSingleAgeEducationError(candidates: ValidationError[], q301: string): ValidationError | null {
+  if (!candidates.length) return null
+  const u = userEducationRank(q301)
+  const withTier: { e: ValidationError; t: number }[] = []
+  for (const e of candidates) {
+    const t = effectiveRuleTier(e)
+    if (t != null) withTier.push({ e, t })
+  }
+  if (withTier.length && u != null) {
+    const relevant = withTier.filter((x) => x.t <= u)
+    if (relevant.length) {
+      const maxT = Math.max(...relevant.map((x) => x.t))
+      const best = relevant.filter((x) => x.t === maxT)
+      return best[0]!.e
+    }
+  }
+  if (withTier.length) {
+    const maxT = Math.max(...withTier.map((x) => x.t))
+    const best = withTier.filter((x) => x.t === maxT)
+    return best[0]?.e ?? candidates[0]!
+  }
+  const q = q301.trim()
+  if (q) {
+    const keywords = [q]
+    if (q === 'دكتوراه') keywords.push('دكتور', 'PhD', 'doctorate')
+    const found = candidates.find((e) => {
+      const msg = e.message || ''
+      return keywords.some((k) => k.length > 1 && msg.includes(k))
+    })
+    if (found) return found
+  }
+  const sevOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+  return [...candidates].sort((a, b) => {
+    const sa = sevOrder[String(a.severity || 'medium')] ?? 1
+    const sb = sevOrder[String(b.severity || 'medium')] ?? 1
+    return sa - sb
+  })[0]!
 }
 
 function labelFor(tag: string, fallback: string): string {
@@ -213,6 +288,32 @@ const health = ref<HealthStatus | null>(null)
 const apiError = ref(false)
 const showSuccess = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+const surveyDisplayErrors = computed(() => {
+  const vr = validationResult.value
+  const raw = vr?.errors ?? []
+  const ageEdu = raw.filter(
+    (e) =>
+      isAgeEducationRuleError(e) &&
+      fieldKeysForError(e).some((k) => k === 'age' || k === 'q_301'),
+  )
+  const rest = raw.filter((e) => !ageEdu.includes(e))
+  const picked = pickSingleAgeEducationError(ageEdu, form.value.q_301)
+  return picked ? [...rest, picked] : rest
+})
+
+const validationDisplayResult = computed(() => {
+  const r = validationResult.value
+  if (!r) return null
+  return { ...r, errors: surveyDisplayErrors.value }
+})
+
+function inlineErrorsForFormField(fieldKey: string): ValidationError[] {
+  const list = surveyDisplayErrors.value.filter((e) => fieldKeysForError(e).includes(fieldKey))
+  /* رسالة العمر↔المؤهل الموحّدة تظهر تحت «العمر» فقط لتجنب التكرار */
+  if (fieldKey === 'q_301') return list.filter((e) => !isAgeEducationRuleError(e))
+  return list
+}
 
 const EDUCATION_OPTIONS = [
   'ابتدائي',
@@ -306,7 +407,6 @@ function generateRandomData() {
   }
 
   form.value = {
-    f_m_id: `DEMO-${1000 + Math.floor(Math.random() * 9000)}`,
     age,
     gender,
     nationality: 'سعودي / سعودية',
@@ -402,28 +502,30 @@ const currentYear = new Date().getFullYear()
 
 <template>
   <div class="survey-page">
-    <div class="page-head">
+    <header class="page-hero">
+      <div class="page-kicker-row">
+        <span class="page-kicker-logo-chip" aria-hidden="true">
+          <img :src="LOGO_AIN_SRC" alt="" width="28" height="28" decoding="async" />
+        </span>
+        <span class="page-kicker">منصة عين — الحارس الدلالي</span>
+      </div>
       <h1 class="page-title">استمارة LFS (الحارس الدلالي)</h1>
       <p class="page-desc">
-        حقول بأسماء الأعمدة كما في <strong>MetaData_LFS_Training_Dataset</strong>؛ يُحوَّل الإدخال لصيغة التحقق.
-        بعد حقلين على الأقل (غير المعرّف)، تُطبَّق قواعد الأعمال تلقائياً أثناء الكتابة — تظهر ملاحظات التعارض تحت
-        الحقل (مثل العمر والمؤهل) دون الضغط على «تحقق نهائي».
+        أسماء الحقول مطابقة لـ <strong>MetaData_LFS_Training_Dataset</strong>؛ تُطبَّق قواعد الأعمال تلقائياً أثناء
+        الإدخال بعد حقلين على الأقل. تظهر التنبيهات تحت الحقول المعنية وفي لوحة «تجاوزات القواعد المؤكدة».
       </p>
 
       <div v-if="apiError" class="banner banner-error">
-        <strong>⚠ تعذّر الاتصال بالـ API</strong> — تأكد أن خادم FastAPI يعمل على
-        <code>http://127.0.0.1:8000</code> (الواجهة في التطوير تمرّر <code>/api</code> عبر Vite).<br />
-        من جذر المشروع: <code>./run.sh</code> أو: <code>cd backend &amp;&amp; uvicorn main:app --reload --host 127.0.0.1 --port 8000</code>
-        — إن كان المنفذ 8000 مستخدماً أوقف العملية القديمة أولاً (<code>lsof -i :8000</code>).
+        <strong>تعذّر الاتصال بالـ API</strong> — تأكد أن خادم FastAPI يعمل على
+        <code>http://127.0.0.1:8000</code> (الواجهة تمرّر <code>/api</code> عبر Vite). من الجذر:
+        <code>./run.sh</code>
       </div>
       <div v-else-if="health && health.mode === 'demo'" class="banner banner-warning">
-        🔧 وضع تجريبي — أضف <code>OPENAI_API_KEY</code> أو <code>GROQ_API_KEY</code> في ملف
-        <code>backend/.env</code> لتفعيل النموذج اللغوي
+        وضع تجريبي — أضف مفتاح API في <code>backend/.env</code> لتفعيل النموذج اللغوي الكامل.
       </div>
       <div v-else-if="health && health.mode === 'live'" class="banner banner-success">
-        ✓ متصل — يعمل بنموذج
-        {{ health.provider === 'gemini' ? 'Google Gemini' : health.provider === 'groq' ? 'Groq LLaMA' : 'OpenAI GPT' }}
-        مباشرةً
+        <span class="banner-success-icon" aria-hidden="true">✓</span>
+        متصل — يعمل بنموذج لغوي مباشر
       </div>
 
       <div class="survey-engine" role="group" aria-label="نوع التحليل">
@@ -445,7 +547,7 @@ const currentYear = new Date().getFullYear()
             :disabled="isSubmitting || isValidating"
             @click="analysisEngine = 'gemini'"
           >
-            Gemini
+            نموذج لغوي
           </button>
           <button
             type="button"
@@ -459,34 +561,21 @@ const currentYear = new Date().getFullYear()
         </div>
         <p class="engine-hint">{{ analyzeModeHint }}</p>
       </div>
-    </div>
+    </header>
 
-    <div class="survey-layout">
-      <form class="survey-form" @submit.prevent="handleSubmit" novalidate>
+    <form id="survey-live-form" class="survey-form" @submit.prevent="handleSubmit" novalidate>
         <section class="form-section">
-          <h2 class="form-section-title">
+          <div class="form-section-head">
             <span class="sec-num">01</span>
-            معرّفات
-          </h2>
-          <div class="fields-grid">
-            <div class="field field-full">
-              <label for="f_m_id">{{ labelFor('f_m_id', 'معرّف الفرد') }} <span class="hint">(f_m_id)</span></label>
-              <input id="f_m_id" v-model="form.f_m_id" type="text" placeholder="اختياري — يُرسَل كاسم للخادم" />
-            </div>
+            <h2 class="form-section-title">البيانات الشخصية الديموغرافية</h2>
           </div>
-        </section>
-
-        <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">02</span>
-            البيانات الشخصية الديموغرافية
-          </h2>
+          <div class="form-section-body">
           <div class="fields-grid">
             <div class="field">
               <label for="age">{{ labelFor('age', 'العمر') }} <span class="req">*</span></label>
               <input id="age" v-model.number="form.age" type="number" min="15" max="100" placeholder="مثال: 35" />
               <div
-                v-for="(err, ei) in inlineErrorsFor('age')"
+                v-for="(err, ei) in inlineErrorsForFormField('age')"
                 :key="'age-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -502,7 +591,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="g in GENDER_OPTIONS" :key="g" :value="g">{{ g }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('gender')"
+                v-for="(err, ei) in inlineErrorsForFormField('gender')"
                 :key="'g-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -515,7 +604,7 @@ const currentYear = new Date().getFullYear()
               <label for="nationality">{{ labelFor('nationality', 'الجنسية') }} <span class="req">*</span></label>
               <input id="nationality" v-model="form.nationality" type="text" placeholder="مثال: سعودي" />
               <div
-                v-for="(err, ei) in inlineErrorsFor('nationality')"
+                v-for="(err, ei) in inlineErrorsForFormField('nationality')"
                 :key="'nat-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -531,7 +620,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="m in MARITAL_OPTIONS" :key="m" :value="m">{{ m }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('marage_status')"
+                v-for="(err, ei) in inlineErrorsForFormField('marage_status')"
                 :key="'mar-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -547,7 +636,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="fr in FAMILY_RELATION_OPTIONS" :key="fr" :value="fr">{{ fr }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('family_relation')"
+                v-for="(err, ei) in inlineErrorsForFormField('family_relation')"
                 :key="'fr-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -567,7 +656,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="اختياري"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('children_count')"
+                v-for="(err, ei) in inlineErrorsForFormField('children_count')"
                 :key="'ch-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -577,13 +666,15 @@ const currentYear = new Date().getFullYear()
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">03</span>
-            البيانات التعليمية
-          </h2>
+          <div class="form-section-head">
+            <span class="sec-num">02</span>
+            <h2 class="form-section-title">البيانات التعليمية</h2>
+          </div>
+          <div class="form-section-body">
           <div class="fields-grid">
             <div class="field field-full">
               <label for="q_301">{{ labelFor('q_301', 'أعلى مؤهل تعليمي') }} <span class="req">*</span></label>
@@ -592,7 +683,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="e in EDUCATION_OPTIONS" :key="e" :value="e">{{ e }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('q_301')"
+                v-for="(err, ei) in inlineErrorsForFormField('q_301')"
                 :key="'q301-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -602,13 +693,15 @@ const currentYear = new Date().getFullYear()
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <section class="form-section">
-          <h2 class="form-section-title">
-            <span class="sec-num">04</span>
-            البيانات العملية والاقتصادية
-          </h2>
+          <div class="form-section-head">
+            <span class="sec-num">03</span>
+            <h2 class="form-section-title">البيانات العملية والاقتصادية</h2>
+          </div>
+          <div class="form-section-body">
           <div class="fields-grid">
             <div class="field">
               <label for="q_534">{{ labelFor('q_534', 'نوع القطاع المؤسسي') }}</label>
@@ -617,7 +710,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="s in SECTOR_OPTIONS" :key="s" :value="s">{{ s }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('q_534')"
+                v-for="(err, ei) in inlineErrorsForFormField('q_534')"
                 :key="'534-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -635,7 +728,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="نص حر — يُرسَل للتحقق الهجين"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('economic_activity_text')"
+                v-for="(err, ei) in inlineErrorsForFormField('economic_activity_text')"
                 :key="'eat-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -653,7 +746,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="نص حر كما في الاستمارة"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('q_537_e_job')"
+                v-for="(err, ei) in inlineErrorsForFormField('q_537_e_job')"
                 :key="'job-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -672,7 +765,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="مثال: 8000"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('q_602_val')"
+                v-for="(err, ei) in inlineErrorsForFormField('q_602_val')"
                 :key="'602-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -692,7 +785,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="مثال: 40"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('weekly_hours_usual')"
+                v-for="(err, ei) in inlineErrorsForFormField('weekly_hours_usual')"
                 :key="'whu-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -712,7 +805,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="مثال: 42"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('weekly_hours_actual')"
+                v-for="(err, ei) in inlineErrorsForFormField('weekly_hours_actual')"
                 :key="'wha-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -728,7 +821,7 @@ const currentYear = new Date().getFullYear()
                 <option v-for="ilo in ILO_STATUS_OPTIONS" :key="ilo" :value="ilo">{{ ilo }}</option>
               </select>
               <div
-                v-for="(err, ei) in inlineErrorsFor('ilo_employment_status')"
+                v-for="(err, ei) in inlineErrorsForFormField('ilo_employment_status')"
                 :key="'ilo-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -748,7 +841,7 @@ const currentYear = new Date().getFullYear()
                 placeholder="لتقدير سنوات الخبرة"
               />
               <div
-                v-for="(err, ei) in inlineErrorsFor('d_ystartwk')"
+                v-for="(err, ei) in inlineErrorsForFormField('d_ystartwk')"
                 :key="'ystart-e-' + ei + err.message.slice(0, 24)"
                 class="field-inline-msg"
                 :class="'field-inline-' + (err.severity || 'medium')"
@@ -757,6 +850,7 @@ const currentYear = new Date().getFullYear()
                 {{ err.message }}
               </div>
             </div>
+          </div>
           </div>
         </section>
 
@@ -772,181 +866,287 @@ const currentYear = new Date().getFullYear()
         <Transition name="fade">
           <div v-if="showSuccess" class="toast toast-success">✓ البيانات مقبولة — درجة الثقة مرتفعة</div>
         </Transition>
-      </form>
 
-      <div class="panel-col">
-        <SurveyLiveSidebar :result="validationResult" :is-loading="isValidating" :mode="mode" />
-      </div>
-    </div>
+        <div class="panel-col">
+          <SurveyLiveSidebar :result="validationDisplayResult" :is-loading="isValidating" :mode="mode" />
+        </div>
+      </form>
   </div>
 </template>
 
 <style scoped>
+/* هوية الحارس الدلالي — مطابقة مرجع الواجهة (بطاقات بيضاء، بنفسجي عميق، سطح رمادي فاتح) */
 .survey-page {
-  max-width: 1400px;
+  --sv-purple: #4137a8;
+  --sv-purple-mid: #5247b8;
+  --sv-purple-deep: #2d2669;
+  --sv-purple-soft: #ebe8f7;
+  --sv-surface: #f1f5f9;
+  --sv-card: #ffffff;
+  --sv-warn-bg: #fff8e6;
+  --sv-warn-border: #ffb74d;
+  --sv-warn-text: #bf360c;
+  --sv-err-bg: #ffebee;
+  --sv-err-border: #e57373;
+  --sv-err-text: #b71c1c;
+
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 2rem 4rem;
+  padding: 1.25rem 1rem 4rem;
+  font-family: var(--font-app);
+  background: var(--sv-surface);
+  border-radius: 0;
 }
 
-.page-head {
-  margin-bottom: 2rem;
+@media (min-width: 900px) {
+  .survey-page {
+    padding: 1.5rem 1.25rem 5.5rem;
+  }
 }
-.page-title {
-  font-size: 1.75rem;
+
+.page-hero {
+  position: relative;
+  background: var(--sv-card);
+  border: 1px solid #e8e8ef;
+  border-radius: 1rem;
+  padding: 1.35rem 1.35rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.page-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ga-green), var(--ga-cyan));
+  border-radius: 1rem 1rem 0 0;
+}
+
+.page-kicker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.page-kicker-logo-chip {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 0.15rem;
+  box-sizing: border-box;
+}
+
+.page-kicker-logo-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.page-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 0.5rem;
+  color: var(--sv-purple);
+  background: var(--sv-purple-soft);
 }
+
+.page-title {
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-weight: 800;
+  color: var(--sv-purple-deep);
+  margin: 0 0 0.55rem;
+  line-height: 1.35;
+}
+
 .page-desc {
-  color: var(--color-text);
-  opacity: 0.85;
-  font-size: 1rem;
-  margin-bottom: 1rem;
+  margin: 0 0 1rem;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  max-width: 52rem;
 }
 
 .survey-engine {
   margin-top: 1rem;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-background-soft);
+  padding-top: 1rem;
+  border-top: 1px solid #e8e8ef;
 }
 .engine-label {
   display: block;
   font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-heading);
-  margin-bottom: 0.45rem;
-  opacity: 0.9;
+  font-weight: 700;
+  color: var(--sv-purple);
+  margin-bottom: 0.5rem;
+  opacity: 0.95;
 }
 .engine-btns {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 .engine-btn {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
   font-family: inherit;
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  background: var(--color-background);
-  color: var(--color-text);
+  font-weight: 600;
+  border: 1.5px solid #d8d4e8;
+  border-radius: 0.55rem;
+  background: #faf9fc;
+  color: #4338ca;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
 }
 .engine-btn:hover:not(:disabled) {
-  background: var(--color-background-mute);
+  background: #fff;
+  border-color: var(--sv-purple-mid);
 }
 .engine-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 .engine-btn-active {
-  background: rgba(14, 116, 144, 0.14);
-  border-color: #0e7490;
-  color: #0e7490;
-  font-weight: 600;
+  background: linear-gradient(180deg, var(--sv-purple-deep) 0%, var(--sv-purple) 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(45, 38, 117, 0.4);
 }
 .engine-hint {
-  margin: 0.55rem 0 0;
+  margin: 0.65rem 0 0;
   font-size: 0.78rem;
-  color: var(--color-text);
-  opacity: 0.82;
-  line-height: 1.45;
+  color: #64748b;
+  line-height: 1.5;
 }
 
 .hint {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--color-text);
-  opacity: 0.65;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94a3b8;
 }
 
 .banner {
-  margin-top: 0.75rem;
-  padding: 0.65rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  margin-top: 0.65rem;
+  padding: 0.7rem 1rem;
+  border-radius: 0.65rem;
+  font-size: 0.86rem;
+  line-height: 1.55;
 }
 .banner code {
-  background: rgba(0, 0, 0, 0.08);
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.25rem;
-  font-size: 0.82rem;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
 }
 .banner-error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #b91c1c;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: var(--sv-err-bg);
+  color: #b71c1c;
+  border: 1px solid var(--sv-err-border);
 }
 .banner-warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #92400e;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: var(--sv-warn-bg);
+  color: #e65100;
+  border: 1px solid var(--sv-warn-border);
 }
 .banner-success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #065f46;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+  font-weight: 700;
+  border-radius: 0.65rem;
 }
-
-.survey-layout {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 2rem;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .survey-layout {
-    grid-template-columns: 1fr 360px;
-  }
-}
-@media (max-width: 820px) {
-  .survey-layout {
-    grid-template-columns: 1fr;
-  }
-  .panel-col {
-    order: -1;
-  }
+.banner-success-icon {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #c8e6c9;
+  font-size: 0.75rem;
 }
 
 .survey-form {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.25rem;
 }
 
 .form-section {
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
+  background: var(--sv-card);
+  border: 1px solid #e8e8ef;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 22px rgba(15, 23, 42, 0.06);
 }
-.form-section-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 1.25rem;
+
+.form-section-head {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.85rem;
+  padding: 1rem 1.2rem;
+  background: #fff;
+  border-bottom: 1px solid #eef0f4;
 }
-.sec-num {
-  font-size: 0.7rem;
+
+.form-section-title {
+  margin: 0;
+  font-size: 1rem;
   font-weight: 800;
-  color: #0e7490;
-  background: rgba(6, 182, 212, 0.12);
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.25rem;
-  letter-spacing: 0.05em;
+  flex: 1;
+  line-height: 1.4;
+  color: var(--sv-purple-deep);
+}
+
+.sec-num {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0;
+  background: linear-gradient(145deg, var(--sv-purple-deep) 0%, var(--sv-purple) 55%, var(--sv-purple-mid) 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(40, 33, 87, 0.38);
+}
+
+.form-section-body {
+  padding: 1.35rem 1.2rem 1.4rem;
+  background: #fff;
 }
 
 .fields-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1rem 1.1rem;
 }
 @media (max-width: 560px) {
   .fields-grid {
@@ -960,95 +1160,120 @@ const currentYear = new Date().getFullYear()
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.42rem;
 }
 .field label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
 }
 .req {
-  color: #ef4444;
+  color: #dc2626;
 }
 .field input,
 .field select {
-  padding: 0.6rem 0.8rem;
-  border: 1.5px solid var(--color-border);
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #d8dee6;
   border-radius: 0.5rem;
-  background: var(--color-background);
-  color: var(--color-text);
+  background: #fff;
+  color: #0f172a;
   font-size: 0.9rem;
-  transition: border-color 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   width: 100%;
   font-family: inherit;
 }
 .field input:focus,
 .field select:focus {
   outline: none;
-  border-color: #0e7490;
+  border-color: var(--sv-purple-mid);
+  box-shadow: 0 0 0 3px rgba(65, 55, 168, 0.12);
+  background: #fff;
 }
 
 .field-inline-msg {
   margin: 0;
   font-size: 0.8rem;
-  line-height: 1.45;
-  padding: 0.4rem 0.55rem;
-  border-radius: 0.35rem;
+  line-height: 1.55;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.5rem;
   border: 1px solid transparent;
 }
 .field-inline-high {
-  color: #991b1b;
-  background: rgba(239, 68, 68, 0.09);
-  border-color: rgba(239, 68, 68, 0.25);
+  color: var(--sv-err-text);
+  background: var(--sv-err-bg);
+  border-color: var(--sv-err-border);
+  font-weight: 600;
 }
 .field-inline-medium {
-  color: #92400e;
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.28);
+  color: var(--sv-warn-text);
+  background: var(--sv-warn-bg);
+  border-color: var(--sv-warn-border);
+  font-weight: 600;
 }
 .field-inline-low {
   color: #475569;
-  background: rgba(100, 116, 139, 0.1);
-  border-color: rgba(100, 116, 139, 0.22);
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 .form-actions {
   display: flex;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1.15rem 1.2rem;
+  margin-top: 0.15rem;
+  background: var(--sv-card);
+  border: 1px solid #e8e8ef;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
 }
+
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  border-radius: 0.5rem;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.72rem 1.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 0.55rem;
   cursor: pointer;
   border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
   font-family: inherit;
 }
 .btn-primary {
-  background: #0e7490;
+  background: linear-gradient(180deg, var(--sv-purple-deep) 0%, var(--sv-purple) 100%);
   color: #fff;
+  box-shadow: 0 4px 18px rgba(45, 38, 117, 0.38);
+  border: none;
 }
 .btn-primary:hover:not(:disabled) {
-  background: #0c6380;
   transform: translateY(-1px);
+  filter: brightness(1.05);
 }
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 .btn-ghost {
-  background: transparent;
-  color: var(--color-text);
-  border-color: var(--color-border);
+  background: #fff;
+  color: var(--ga-cyan);
+  border: 2px solid var(--ga-cyan);
 }
 .btn-ghost:hover {
-  background: var(--color-background-mute);
+  background: var(--ga-cyan-soft);
+  border-color: var(--ga-cyan);
+  color: #006b8a;
 }
 .btn-spinner {
   width: 14px;
@@ -1067,14 +1292,14 @@ const currentYear = new Date().getFullYear()
 
 .toast {
   padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  border-radius: 0.55rem;
+  font-size: 0.86rem;
+  font-weight: 600;
 }
 .toast-success {
-  background: rgba(16, 185, 129, 0.12);
-  color: #065f46;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
 }
 .fade-enter-active,
 .fade-leave-active {
@@ -1085,4 +1310,8 @@ const currentYear = new Date().getFullYear()
   opacity: 0;
 }
 
+.panel-col {
+  min-width: 0;
+  margin-top: 1.15rem;
+}
 </style>
