@@ -11,6 +11,7 @@
 | **تحليل Excel / CSV** | […/#/analysis](https://iksasa15.github.io/DataInnovationHackathon/#/analysis) |
 | **اختبارات (API، Swagger، تشخيص، نموذج لغوي)** | […/#/tests](https://iksasa15.github.io/DataInnovationHackathon/#/tests) |
 | **الـ API (مثال منشور)** | `https://datainnovationhackathon.onrender.com` — يُضبط عبر `DataHackathon/.env.production` (`VITE_API_URL`) وSecret في GitHub Actions إن لزم |
+| **الفيديو التوضيحي (YouTube)** | [youtu.be/tZ4r2iM9ieQ](https://youtu.be/tZ4r2iM9ieQ) |
 
 > **مهم لـ GitHub Pages:** المصدر يجب أن يكون مجلد **`docs`** وليس جذر الفرع، وإلا يظهر نص README بدل التطبيق.  
 > **Settings → Pages → Branch: `main` → Folder: `/docs`**.  
@@ -276,10 +277,9 @@ VITE_API_URL=https://your-api.example.com
 - عرضاً **حياً** لاكتشاف التناقضات من الاستمارة.  
 - إن أمكن: لقطة سريعة لرفع Excel والنتائج.
 
-**رابط الفيديو (يُحدَّث من الفريق عند التسليم):**
+**رابط الفيديو التوضيحي:**
 
-<!-- أضف الرابط الفعلي هنا -->
-`[لم يُرفَق بعد — استبدل هذا السطر برابط YouTube / Drive / غيره]`
+[https://youtu.be/tZ4r2iM9ieQ](https://youtu.be/tZ4r2iM9ieQ)
 
 ---
 
