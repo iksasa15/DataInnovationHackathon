@@ -4,14 +4,13 @@ import PitchSvgIcon from '../components/PitchSvgIcon.vue'
 import { LOGO_AIN_SRC } from '../constants/branding'
 
 const TAGLINE =
-  'منصة ذكية ترفع جودة البيانات من المصدر عبر كشف التناقضات أثناء الإدخال، باستخدام الذكاء الاصطناعي لتحليل فوري يعزز الدقة ويقلل الجهد ويدعم القرار.'
+  'منصة ذكية ترفع جودة البيانات من المصدر عبر كشف التناقضات المنطقية والدلالية باستخدام الذكاء الاصطناعي، سواء في الاستمارة الحية أو عند تحليل الملفات الجدولية. ويربط الحل بين نماذج اللغة الكبيرة وقواعد الأعمال ومسار جمع البيانات، لتحويل التحقق من مرحلة لاحقة إلى جزء مباشر من دورة العمل، بما يعزز الدقة ويقلل الجهد في المراجعة اللاحقة.'
 </script>
 
 <template>
   <div class="pitch-page">
     <!-- الشريحة ١ — تعريف وجملة -->
     <section class="slide slide--cover" aria-labelledby="s1">
-      <div class="slide-num">١</div>
       <div class="slide-body slide-body--cover">
         <span class="pitch-hero-badge">
           <span class="pitch-hero-badge-chip" aria-hidden="true">
@@ -20,10 +19,6 @@ const TAGLINE =
           عن عين
         </span>
         <p id="s1" class="pitch-tagline">{{ TAGLINE }}</p>
-        <p class="slide-lead slide-lead--tight">
-          حلّنا يربط نماذج لغوية كبيرة (LLM) بمسار جمع البيانات لاكتشاف التناقضات المنطقية والدلالية
-          <strong>أثناء الإدخال</strong> — ضمن تحدّي «الحارس الدلالي» لجودة البيانات الإحصائية.
-        </p>
 
         <div class="cover-goals-wrap">
           <h3 class="cover-goals-title">الأهداف</h3>
@@ -34,23 +29,19 @@ const TAGLINE =
             </li>
             <li class="goal-card">
               <span class="goal-icon"><PitchSvgIcon name="cog" size="lg" /></span>
-              <span>أتمتة التحقق وتقليل الأخطاء البشرية</span>
+              <span>تقليل الأخطاء البشرية والجهد اليدوي</span>
             </li>
             <li class="goal-card">
               <span class="goal-icon"><PitchSvgIcon name="clock" size="lg" /></span>
-              <span>تسريع دورة جمع ومعالجة البيانات</span>
-            </li>
-            <li class="goal-card">
-              <span class="goal-icon"><PitchSvgIcon name="chat" size="lg" /></span>
-              <span>تعزيز الشفافية والتغذية الراجعة الفورية</span>
+              <span>تسريع جمع ومعالجة البيانات</span>
             </li>
             <li class="goal-card">
               <span class="goal-icon"><PitchSvgIcon name="check-circle" size="lg" /></span>
-              <span>تمكين اتخاذ القرار المبني على بيانات موثوقة</span>
+              <span>دعم القرار ببيانات أكثر موثوقية</span>
             </li>
             <li class="goal-card">
-              <span class="goal-icon"><PitchSvgIcon name="link" size="lg" /></span>
-              <span>تكامل مرن مع الأنظمة والمنصات المختلفة</span>
+              <span class="goal-icon"><PitchSvgIcon name="chat" size="lg" /></span>
+              <span>تعزيز التغذية الراجعة الفورية</span>
             </li>
           </ul>
         </div>
@@ -59,23 +50,21 @@ const TAGLINE =
 
     <!-- الشريحة 2 — المشكلة + أثرها (نفس الشريحة) -->
     <section class="slide slide--problem" aria-labelledby="s2">
-      <div class="slide-num">٢</div>
       <div class="slide-body">
         <h2 id="s2">المشكلة</h2>
         <p class="slide-lead slide-lead--problem">
-          في سياق العمل الميداني الذي يتطلب جمع آلاف الاستبيانات، تُعد عملية التحقق اليدوي من صحة وتناسق البيانات
-          (مثل: العمر، المستوى التعليمي، المهنة، الحالة الاجتماعية، مدة البحث عن عمل، وغيرها)
-          <strong>تحديًا جوهريًا</strong>. إذ أن هذه العملية غالبًا ما تكون غير عملية عند هذا الحجم، كما أنها تستنزف وقتًا
-          وجهدًا كبيرين بعد مرحلة جمع البيانات.
+          في الأعمال الميدانية وجمع الاستبيانات والملفات بكميات كبيرة، يصبح التحقق اليدوي من صحة البيانات واتساقها
+          <strong>تحدّيًا كبيرًا</strong>، خاصة مع وجود حقول مترابطة وتناقضات دلالية ومنطقية لا تكشفها القواعد التقليدية
+          بسهولة، مما يؤدي إلى اكتشافها في مراحل متأخرة.
         </p>
 
         <div class="slide-grid-2 slide-grid-2--problem">
           <div class="card-mini">
             <h3 class="problem-split-heading">لماذا المراجعة اليدوية صعبة؟</h3>
             <ul class="card-mini-list">
-              <li>حجم البيانات الكبير وعدد الحقول المتقاطعة (مئات الأعمدة في ملفات مثل LFS).</li>
-              <li>التناقضات «الدلالية» لا تُمسكها قواعد جامدة فقط (مثل تعارض المسمى الوظيفي مع المؤهل).</li>
-              <li>الاكتشاف المتأخر يعني إعادة اتصال أو تصحيح مكلف.</li>
+              <li>كثرة السجلات وتعدد الحقول المترابطة.</li>
+              <li>صعوبة اكتشاف التناقضات الدلالية يدويًا.</li>
+              <li>الاكتشاف المتأخر يرفع تكلفة التصحيح والمعالجة.</li>
             </ul>
           </div>
           <div class="card-mini card-mini--accent">
@@ -83,15 +72,15 @@ const TAGLINE =
             <ul class="icon-list icon-list--impact" role="list">
               <li>
                 <span class="icon-cell"><PitchSvgIcon name="chart" /></span>
-                <span>زيادة احتمالية وقوع أخطاء في التقارير الإحصائية والمؤشرات المستخلصة من البيانات.</span>
+                <span>ارتفاع احتمال الأخطاء في التقارير والمؤشرات.</span>
               </li>
               <li>
                 <span class="icon-cell"><PitchSvgIcon name="trend-down" /></span>
-                <span>تراجع مستوى الثقة لدى المستخدمين وصناع القرار في مخرجات البيانات المنشورة.</span>
+                <span>تراجع الثقة في المخرجات.</span>
               </li>
               <li>
                 <span class="icon-cell"><PitchSvgIcon name="cost" /></span>
-                <span>ارتفاع تكاليف المعالجة اللاحقة، مثل تنظيف البيانات أو إعادة إجراء المقابلات للتحقق من صحتها.</span>
+                <span>زيادة الوقت والجهد في المعالجة اللاحقة.</span>
               </li>
             </ul>
           </div>
@@ -101,109 +90,98 @@ const TAGLINE =
 
     <!-- الشريحة 3 -->
     <section class="slide slide--flow" aria-labelledby="s3">
-      <div class="slide-num">٣</div>
       <div class="slide-body">
-        <h2 id="s3">كيف تعمل المنصة — المسار المختصر</h2>
+        <h2 id="s3">كيف تعمل المنصة</h2>
         <p class="slide-lead">
-          منصتنا تربط طبقة تحقق ذكية بالاستمارة أو الملف: من الإدخال إلى النتيجة في مسار واحد واضح.
+          تربط المنصة طبقة تحقق ذكية بمسار البيانات، بحيث تنتقل من الإدخال أو الرفع إلى النتيجة في مسار واضح وسريع.
         </p>
-        <ol class="flow-steps">
+        <h3 class="subsection-title flow-path-heading">المسار</h3>
+        <ul class="flow-steps">
           <li>
-            <span class="flow-icon" aria-hidden="true">①</span>
             <div>
-              <strong>تحليل حي</strong>
-              <span>أثناء ملء الاستمارة يُرسل الحقل إلى الـ API ويُعاد تقييم درجة الثقة والتنبيهات دون انتظار الإرسال النهائي.</span>
+              <strong>الاستمارة الحية</strong>
+              <span>أثناء تعبئة الحقول، يتم تحليل البيانات، ثم تعرض النتيجة بشكل فوري مع درجة ثقة وتنبيهات واضحة.</span>
             </div>
           </li>
           <li>
-            <span class="flow-icon" aria-hidden="true">②</span>
             <div>
-              <strong>رفع مستندات</strong>
-              <span>استيراد Excel/CSV (استبيانات مجمّعة أو عينات تدريب) لتحليل دفعي صفاً بصف.</span>
+              <strong>تحليل الملفات</strong>
+              <span>يمكن رفع ملفات Excel وCSV لتحليل السجلات دفعة واحدة واكتشاف التناقضات داخل البيانات المجمّعة.</span>
             </div>
           </li>
           <li>
-            <span class="flow-icon" aria-hidden="true">③</span>
             <div>
               <strong>تحليل ذكي</strong>
-              <span>استخدام LLM مع إرشادات وسياق أعمدة (وميتاداتا LFS عند تفعيل القالب) لاكتشاف التناقضات المعقّدة.</span>
+              <span>تعتمد المنصة على نماذج لغوية وقواعد أعمال لاكتشاف التناقضات المنطقية والدلالية بشكل أكثر دقة.</span>
             </div>
           </li>
           <li>
-            <span class="flow-icon" aria-hidden="true">④</span>
             <div>
               <strong>عرض النتائج</strong>
-              <span>درجة ثقة، ملخص، أخطاء مرتبطة بالحقول، واقتراحات تصحيح — جاهزة للقراءة والتصدير.</span>
+              <span>تعرض النتائج في صورة حالة، ودرجة ثقة، وتنبيهات، وحقول متأثرة، واقتراحات تساعد على المراجعة والتصحيح.</span>
             </div>
           </li>
-        </ol>
+        </ul>
       </div>
     </section>
 
     <!-- الشريحة 4 -->
     <section class="slide slide--usage" aria-labelledby="s4">
-      <div class="slide-num">٤</div>
       <div class="slide-body">
         <h2 id="s4">المنصة في الاستخدام</h2>
         <p class="slide-lead">
-          تجربة موحّدة: من الاستبيان المباشر إلى الجداول الكبيرة.
+          توفر المنصة تجربة موحدة تجمع بين الاستبيان الحي وتحليل الملفات، بما يساعد على فهم التناقضات واتخاذ الإجراء
+          المناسب بسرعة.
         </p>
         <div class="usage-blocks">
-          <div>
+          <div class="usage-blocks__panel">
             <h3>خطوات الاستخدام</h3>
-            <ol class="slide-list ordered">
-              <li>تشغيل الواجهة والخادم، التأكد من تفعيل مفتاح النموذج اللغوي (أو المودل المحلي).</li>
-              <li>
-                <strong>الاستبيان:</strong> فتح «الحارس الدلالي»، ملء الحقول — يظهر لوح التحقق تلقائياً بعد ثوانٍ.
-              </li>
-              <li>
-                <strong>الملفات:</strong> فتح «تحليل الملف»، رفع Excel/CSV، تفعيل «قالب LFS» عند الحاجة، ثم «تحليل».
-              </li>
-              <li>مراجعة الألوان على الخلايا (حرج / متوسط / خفيف) وفتح عمود التفاصيل لكل صف.</li>
-              <li>تعديل القيم في الجدول إن لزم، ثم تصدير الملف المعدّل أو التقرير النصي.</li>
-            </ol>
-          </div>
-          <div>
-            <h3>قراءة النتائج والتناقضات</h3>
             <ul class="slide-list">
-              <li><strong>درجة الثقة:</strong> مقياس 0–100 يعكس اتساق الصف ككل.</li>
-              <li><strong>التناقضات:</strong> قائمة بأسماء الحقول المتأثرة مع شرح عربي ودرجة الخطورة.</li>
-              <li><strong>الاقتراحات:</strong> خطوات عملية لتصحيح الإدخال أو استكمال الحقول الناقصة.</li>
-              <li>يمكن تصفية الصفوف (أخطاء / تحذيرات / سليمة) لتسريع المراجعة.</li>
+              <li>اختيار مسار الاستمارة الحية أو رفع ملف Excel أو CSV.</li>
+              <li>تنفيذ التحليل باستخدام قواعد الأعمال أو النموذج اللغوي أو الاثنين معًا.</li>
+              <li>عرض النتائج حسب مستوى الشدة والحالة.</li>
+              <li>تحديد الحقول المتأثرة داخل السجل أو الملف.</li>
+              <li>مراجعة الاقتراحات واتخاذ إجراء التصحيح أو التصدير.</li>
+            </ul>
+          </div>
+          <div class="usage-blocks__panel">
+            <h3>قراءة النتائج</h3>
+            <ul class="slide-list">
+              <li><strong>درجة ثقة</strong> تعكس مدى اتساق السجل.</li>
+              <li>قائمة بالتناقضات والملاحظات.</li>
+              <li>تمييز الحقول المتأثرة.</li>
+              <li>اقتراحات للمراجعة أو التصحيح.</li>
+              <li>إمكانية فرز الحالات حسب الأولوية.</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- الشريحة 5 — ما يميزنا، الأهداف، الخلاصة -->
+    <!-- الشريحة 5 — ما يميز عين، الخلاصة -->
     <section class="slide slide--outro" aria-labelledby="s5">
-      <div class="slide-num">٥</div>
       <div class="slide-body">
-        <h2 id="s5">الفائدة وما يميز حلنا</h2>
+        <h2 id="s5">ما الذي يميز عين؟</h2>
+        <p class="slide-lead slide-lead--outro">
+          يتميّز حلّنا بأنه لا يتعامل مع جودة البيانات كمرحلة لاحقة بعد اكتمال الجمع، بل يدمج التحقق الذكي داخل مسار
+          العمل نفسه، سواء في الاستمارة الحية أو في تحليل الملفات، مما يرفع جودة البيانات مبكرًا ويقلل تكاليف المعالجة
+          اللاحقة.
+        </p>
 
-        <h3 class="subsection-title">ما يميز منصتنا</h3>
+        <h3 class="subsection-title">ما يميز المنصة</h3>
         <ul class="slide-list slide-list--spaced">
-          <li>
-            <strong>تكامل فعّال مع مسار جمع البيانات،</strong> من خلال واجهة تفاعلية حية مدعومة بواجهات برمجية (API)
-            ومعالجة فورية.
-          </li>
-          <li>
-            <strong>دعم متقدم لقوالب المسوح</strong> (مثل LFS)، مع إمكانية تخصيص أعمدة الوصف، وربط ميتاداتا الأسئلة،
-            وتطبيق قواعد تحقق ذكية.
-          </li>
-          <li>
-            <strong>مرونة عالية في اختيار مزودات الذكاء الاصطناعي،</strong> بما يتوافق مع مختلف البيئات التقنية
-            (مثل النماذج المتوافقة مع OpenAI أو غيرها، بما في ذلك الحلول المحلية).
-          </li>
+          <li>الجمع بين الاستمارة الحية وتحليل الملفات في تجربة موحدة.</li>
+          <li>كشف دلالي ومنطقي وليس تحققًا شكليًا فقط.</li>
+          <li>عرض درجة ثقة وتنبيهات واضحة واقتراحات عملية.</li>
+          <li>دعم قواعد الأعمال والنموذج اللغوي ضمن تجربة موحدة.</li>
+          <li>تمكين المستخدم من الوصول السريع إلى موضع الإشكال.</li>
         </ul>
 
         <div class="pitch-summary">
           <strong>الخلاصة</strong>
           <p>
-            تُحوّل المنصة عملية التحقق من جودة البيانات من مرحلة لاحقة إلى جزء متكامل من عملية الإدخال نفسها؛ مما يؤدي
-            إلى تسريع سير العمل، وتحسين موثوقية البيانات، ورفع كفاءة فرق العمل، مع تحقيق توافق أكبر مع متطلبات التحديات
-            الحديثة في جودة البيانات.
+            تحوّل المنصة التحقق من جودة البيانات من خطوة لاحقة ومكلفة إلى عملية فورية ومندمجة ضمن دورة العمل، بما يعزز
+            موثوقية البيانات ويرفع كفاءة المعالجة ويدعم اتخاذ القرار.
           </p>
         </div>
         <div class="pitch-cta">
@@ -217,12 +195,21 @@ const TAGLINE =
 
 <style scoped>
 .pitch-page {
+  --pitch-surface-grad: linear-gradient(
+    165deg,
+    var(--ga-primary-soft, #ebe8f7) 0%,
+    #fff 52%,
+    var(--ga-cyan-soft, #dff6fc) 100%
+  );
+  --pitch-border: 1px solid rgba(65, 55, 168, 0.14);
+  --pitch-rail: 3px solid rgba(82, 71, 184, 0.42);
+
   min-height: 100%;
   max-width: 920px;
   margin: 0 auto;
   padding: 1.25rem 1.25rem 2.5rem;
   font-family: var(--font-app);
-  background: #f1f5f9;
+  background: linear-gradient(180deg, #e8eaf5 0%, #f0f4fa 38%, #f4f2fb 100%);
   color: var(--ga-primary-darker, #1a1530);
 }
 
@@ -276,9 +263,9 @@ const TAGLINE =
 }
 
 .cover-goals-wrap {
-  margin-top: 1.5rem;
-  padding-top: 1.35rem;
-  border-top: 1px dashed var(--ga-neutral-light, #dde2e8);
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px dashed rgba(65, 55, 168, 0.2);
   width: 100%;
   max-width: 100%;
   text-align: right;
@@ -296,75 +283,33 @@ const TAGLINE =
   margin-top: 0;
 }
 
-.slide-lead--tight {
-  text-align: right;
-  margin-top: 1.25rem;
-  max-width: 40rem;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .pitch-tagline {
   font-size: 1rem;
-  line-height: 1.75;
-  max-width: 42rem;
+  line-height: 1.8;
+  max-width: 40rem;
   margin: 0 auto;
   color: #334155;
 }
 
 .slide {
-  --slide-accent: var(--ga-primary);
   display: flex;
-  gap: 1.25rem;
   align-items: flex-start;
-  margin-bottom: 2.5rem;
-  padding: 1.75rem 1.5rem;
-  background: #fff;
-  border-radius: 0.85rem;
-  border: 1px solid #e8e8ef;
-  border-right: 3px solid var(--slide-accent);
-  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
-  transition: box-shadow 0.2s, transform 0.2s;
+  margin-bottom: 1.35rem;
+  padding: 1.5rem 1.35rem 1.6rem;
+  border-radius: 1rem;
+  background: var(--pitch-surface-grad);
+  border: var(--pitch-border);
+  border-right: var(--pitch-rail);
+  box-shadow: 0 4px 22px rgba(65, 55, 168, 0.08);
+  transition: box-shadow 0.22s ease;
 }
 
 .slide:hover {
-  box-shadow: 0 8px 28px rgba(45, 31, 69, 0.1);
+  box-shadow: 0 8px 32px rgba(65, 55, 168, 0.11);
 }
 
 .slide--cover {
-  --slide-accent: var(--ga-primary);
-  background: linear-gradient(165deg, var(--ga-primary-soft, #ebe8f7) 0%, #fff 55%, var(--ga-cyan-soft, #dff6fc) 100%);
-}
-
-.slide--problem {
-  --slide-accent: var(--ga-primary-mid);
-}
-
-.slide--flow {
-  --slide-accent: var(--ga-cyan);
-}
-
-.slide--usage {
-  --slide-accent: var(--ga-green);
-}
-
-.slide--outro {
-  --slide-accent: var(--ga-primary);
-}
-
-.slide-num {
-  flex-shrink: 0;
-  width: 2.75rem;
-  height: 2.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(145deg, var(--ga-primary, #4137a8), var(--ga-primary-dark, #322a82));
-  border-radius: 0.75rem;
-  line-height: 1;
+  padding: 1.85rem 1.5rem 2rem;
 }
 
 .slide-body {
@@ -373,17 +318,24 @@ const TAGLINE =
 }
 
 .slide-body h2 {
-  font-size: 1.35rem;
+  font-size: 1.28rem;
   font-weight: 800;
   color: var(--ga-primary-dark, #322a82);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
+  letter-spacing: -0.02em;
+}
+
+.slide-body:not(.slide-body--cover) h2 {
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(65, 55, 168, 0.12);
+  margin-bottom: 1rem;
 }
 
 .slide-body h3 {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--ga-primary, #4137a8);
-  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--ga-primary-dark, #322a82);
+  margin: 0 0 0.55rem;
 }
 
 .slide-lead {
@@ -397,6 +349,10 @@ const TAGLINE =
   margin-bottom: 1.35rem;
 }
 
+.slide-lead--outro {
+  margin-bottom: 1rem;
+}
+
 .problem-split-heading {
   font-size: 1.05rem;
   font-weight: 800;
@@ -405,8 +361,9 @@ const TAGLINE =
 }
 
 .slide-grid-2--problem {
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
   align-items: stretch;
+  gap: 1.1rem;
 }
 
 .icon-list {
@@ -450,14 +407,18 @@ const TAGLINE =
 }
 
 .subsection-title {
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   font-weight: 800;
   color: var(--ga-primary, #4137a8);
-  margin: 1.35rem 0 0.65rem;
+  margin: 1.15rem 0 0.75rem;
 }
 
 .subsection-title:first-of-type {
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.flow-path-heading {
+  margin-top: 0.85rem;
 }
 
 .slide-list--spaced li {
@@ -513,29 +474,12 @@ const TAGLINE =
   color: #334155;
 }
 
+.usage-blocks__panel .slide-list {
+  padding-right: 1.1rem;
+}
+
 .slide-list li {
   margin-bottom: 0.45rem;
-}
-
-.slide-list.ordered {
-  list-style: decimal;
-  padding-right: 1.25rem;
-}
-
-.slide--problem .slide-num {
-  background: linear-gradient(145deg, var(--ga-primary-mid, #5247b8), var(--ga-primary-dark, #322a82));
-}
-
-.slide--flow .slide-num {
-  background: linear-gradient(145deg, var(--ga-cyan, #00b2df), #0284c7);
-}
-
-.slide--usage .slide-num {
-  background: linear-gradient(145deg, var(--ga-green-dark, #3daf2e), var(--ga-green, #53cd3f));
-}
-
-.slide--outro .slide-num {
-  background: linear-gradient(145deg, var(--ga-primary-mid, #5247b8), var(--ga-primary, #4137a8));
 }
 
 .slide-grid-2 {
@@ -551,15 +495,16 @@ const TAGLINE =
 }
 
 .card-mini {
-  padding: 1rem 1.1rem;
-  background: var(--ga-surface, #f4f6f9);
-  border-radius: 0.65rem;
-  border: 1px solid var(--ga-neutral-light, #dde2e8);
+  padding: 1.05rem 1.15rem;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(65, 55, 168, 0.12);
+  box-shadow: 0 2px 12px rgba(65, 55, 168, 0.06);
 }
 
 .card-mini--accent {
-  background: linear-gradient(180deg, var(--ga-primary-soft, #ebe8f7) 0%, #fff 100%);
-  border-color: rgba(65, 55, 168, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, var(--ga-primary-soft, #ebe8f7) 100%);
+  border-color: rgba(65, 55, 168, 0.14);
 }
 
 .card-mini ul {
@@ -576,24 +521,15 @@ const TAGLINE =
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .flow-steps li {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1rem 1.1rem;
-  background: linear-gradient(90deg, var(--ga-cyan-soft, #dff6fc) 0%, #fff 40%);
-  border-radius: 0.65rem;
-  border: 1px solid #bae6fd;
-}
-
-.flow-icon {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--ga-cyan, #00b2df);
-  line-height: 1;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, var(--ga-primary-soft, #ebe8f7) 100%);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(65, 55, 168, 0.12);
+  box-shadow: 0 2px 10px rgba(65, 55, 168, 0.05);
 }
 
 .flow-steps strong {
@@ -603,7 +539,7 @@ const TAGLINE =
   margin-bottom: 0.25rem;
 }
 
-.flow-steps span:not(.flow-icon) {
+.flow-steps li span {
   font-size: 0.92rem;
   line-height: 1.65;
   color: #475569;
@@ -612,7 +548,24 @@ const TAGLINE =
 .usage-blocks {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  gap: 1rem;
+  margin-top: 0.35rem;
+  align-items: stretch;
+}
+
+.usage-blocks__panel {
+  padding: 1.1rem 1.15rem 1.15rem;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(65, 55, 168, 0.11);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 14px rgba(65, 55, 168, 0.06);
+}
+
+.usage-blocks__panel h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ga-primary, #4137a8);
 }
 
 @media (max-width: 720px) {
@@ -622,14 +575,16 @@ const TAGLINE =
 }
 
 .pitch-summary {
-  margin-top: 1.5rem;
-  padding: 1rem 1.15rem;
-  background: var(--ga-primary-soft, #ebe8f7);
-  border-radius: 0.65rem;
-  border-right: 4px solid var(--ga-primary, #4137a8);
+  margin-top: 1.65rem;
+  padding: 1.15rem 1.2rem;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.9) 0%, var(--ga-primary-soft, #ebe8f7) 100%);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(65, 55, 168, 0.12);
+  border-right: 4px solid var(--ga-primary-mid, #5247b8);
   font-size: 0.98rem;
   line-height: 1.8;
   color: #1e293b;
+  box-shadow: 0 2px 14px rgba(65, 55, 168, 0.06);
 }
 
 .pitch-summary strong {
@@ -648,8 +603,8 @@ const TAGLINE =
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.5rem;
-  justify-content: flex-start;
+  margin-top: 1.65rem;
+  justify-content: center;
 }
 
 .pitch-btn {
