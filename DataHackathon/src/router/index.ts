@@ -32,6 +32,11 @@ const router = createRouter({
       name: 'privacy',
       component: () => import('../views/PrivacyView.vue'),
     },
+    {
+      path: '/pitch',
+      name: 'pitch',
+      component: () => import('../views/PitchView.vue'),
+    },
     { path: '/about', redirect: '/' },
     { path: '/tests', redirect: '/' },
     {

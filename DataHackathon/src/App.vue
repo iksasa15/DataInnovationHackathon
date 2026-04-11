@@ -19,11 +19,13 @@ const pageTitle = computed(() => {
   if (n === 'survey') return 'الحارس الدلالي — الاستبيان'
   if (n === 'analysis') return 'تحليل الملف الجدولي'
   if (n === 'privacy') return 'سياسة الخصوصية'
+  if (n === 'pitch') return 'عن عين'
   return 'عين'
 })
 
 const navItems = [
   { to: '/', name: 'home', label: 'الرئيسية', icon: '📊' },
+  { to: '/pitch', name: 'pitch', label: 'عن عين', icon: '📋' },
   { to: '/survey', name: 'survey', label: 'الحارس الدلالي', icon: '🛡' },
   { to: '/analysis', name: 'analysis', label: 'تحليل الملف', icon: '📂' },
   { to: '/privacy', name: 'privacy', label: 'الخصوصية', icon: '🔒' },
