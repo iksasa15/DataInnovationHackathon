@@ -303,7 +303,6 @@ function isFreqOpen(field: string): boolean {
               <tr>
                 <th class="freq-col-expand" scope="col" aria-hidden="true"></th>
                 <th scope="col">الحقل</th>
-                <th scope="col" class="freq-col-tag">المعرف</th>
                 <th scope="col" class="freq-col-num">إجمالي التكرار</th>
                 <th scope="col" class="freq-col-num">عدد الرسائل</th>
               </tr>
@@ -324,13 +323,12 @@ function isFreqOpen(field: string): boolean {
                   <td class="freq-col-expand">
                     <span class="freq-chevron" aria-hidden="true">{{ isFreqOpen(g.field) ? '▼' : '◀' }}</span>
                   </td>
-                  <td class="freq-cell-field">{{ g.fieldLabel }}</td>
-                  <td class="freq-cell-code" dir="ltr">{{ g.field }}</td>
+                  <td class="freq-cell-field" :title="'معرّف تقني: ' + g.field">{{ g.fieldLabel }}</td>
                   <td class="freq-cell-num">{{ g.totalCount }}</td>
                   <td class="freq-cell-num">{{ g.rows.length }}</td>
                 </tr>
                 <tr v-show="isFreqOpen(g.field)" class="freq-detail-row">
-                  <td :id="'freq-detail-' + g.field" class="freq-detail-cell" colspan="5" role="region">
+                  <td :id="'freq-detail-' + g.field" class="freq-detail-cell" colspan="4" role="region">
                     <table class="batch-insights-table batch-insights-table--nested">
                       <thead>
                         <tr>
@@ -778,17 +776,6 @@ function isFreqOpen(field: string): boolean {
 .freq-cell-field {
   font-weight: 700;
   color: var(--color-heading);
-}
-
-.freq-col-tag {
-  max-width: 9rem;
-}
-
-.freq-cell-code {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-text);
-  opacity: 0.88;
 }
 
 .freq-col-num {

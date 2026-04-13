@@ -115,7 +115,7 @@ const filteredIssueCards = computed(() =>
   ),
 )
 
-const ISSUE_CARDS_INITIAL = 3
+const ISSUE_CARDS_INITIAL = 5
 const issueCardsExpanded = ref(false)
 const displayedIssueCards = computed(() => {
   const all = filteredIssueCards.value
@@ -691,35 +691,37 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         <h3 class="issue-cards-title">التنبيهات ({{ filteredIssueCards.length }})</h3>
         <p v-if="!filteredIssueCards.length" class="issue-cards-empty">لا توجد تنبيهات تطابق الفلتر الحالي.</p>
         <template v-else>
-          <ul class="issue-cards-list">
-            <li
-              v-for="(c, ci) in displayedIssueCards"
-              :key="'ic' + ci + '-' + c.rowDisplay + '-' + c.fieldKey"
-              class="issue-card"
-              :class="'issue-card--' + c.severityKey"
+          <div class="issue-cards-layout">
+            <ul class="issue-cards-list">
+              <li
+                v-for="(c, ci) in displayedIssueCards"
+                :key="'ic' + ci + '-' + c.rowDisplay + '-' + c.fieldKey"
+                class="issue-card"
+                :class="'issue-card--' + c.severityKey"
+              >
+                <div class="issue-card-head">
+                  <span class="issue-card-sev-badge">{{ c.severityLabel }}</span>
+                  <span class="issue-card-row-num">الصف {{ c.rowDisplay }}</span>
+                </div>
+                <h4 class="issue-card-headline">{{ c.title }}</h4>
+                <p class="issue-card-field-line">العمود الرئيسي: {{ c.fieldLabel }}</p>
+                <p v-if="c.confidence != null" class="issue-card-confidence">
+                  الثقة: {{ Math.round(c.confidence) }}٪
+                </p>
+                <span class="issue-card-kind-pill">{{ c.kindLabel }}</span>
+                <p v-if="c.body && c.body.trim() !== c.title.trim()" class="issue-card-detail">{{ c.body }}</p>
+              </li>
+            </ul>
+            <button
+              v-if="filteredIssueCards.length > ISSUE_CARDS_INITIAL"
+              type="button"
+              class="issue-cards-more-btn"
+              :aria-expanded="issueCardsExpanded"
+              @click="issueCardsExpanded = !issueCardsExpanded"
             >
-              <div class="issue-card-head">
-                <span class="issue-card-sev-badge">{{ c.severityLabel }}</span>
-                <span class="issue-card-row-num">الصف {{ c.rowDisplay }}</span>
-              </div>
-              <h4 class="issue-card-headline">{{ c.title }}</h4>
-              <p class="issue-card-field-line">العمود الرئيسي: {{ c.fieldLabel }}</p>
-              <p v-if="c.confidence != null" class="issue-card-confidence">
-                الثقة: {{ Math.round(c.confidence) }}٪
-              </p>
-              <span class="issue-card-kind-pill">{{ c.kindLabel }}</span>
-              <p v-if="c.body && c.body.trim() !== c.title.trim()" class="issue-card-detail">{{ c.body }}</p>
-            </li>
-          </ul>
-          <button
-            v-if="filteredIssueCards.length > ISSUE_CARDS_INITIAL"
-            type="button"
-            class="issue-cards-more-btn"
-            :aria-expanded="issueCardsExpanded"
-            @click="issueCardsExpanded = !issueCardsExpanded"
-          >
-            {{ issueCardsExpanded ? 'عرض أقل' : 'المزيد' }}
-          </button>
+              {{ issueCardsExpanded ? 'عرض أقل' : 'المزيد' }}
+            </button>
+          </div>
         </template>
       </section>
 
@@ -1158,18 +1160,43 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border: 1px dashed var(--color-border);
   border-radius: 0.5rem;
 }
+.issue-cards-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.04), transparent 48%);
+}
 .issue-cards-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+  align-items: stretch;
+}
+@media (max-width: 1100px) {
+  .issue-cards-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .issue-cards-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .issue-cards-list {
+    grid-template-columns: 1fr;
+  }
 }
 .issue-cards-more-btn {
   display: block;
   width: 100%;
-  margin-top: 0.5rem;
+  margin-top: 0;
   padding: 0.45rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
@@ -1186,12 +1213,20 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .issue-card {
   margin: 0;
-  padding: 1rem 1.1rem;
-  border-radius: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.55rem;
   border: 1px solid var(--color-border);
   background: var(--color-background);
   border-right: 4px solid var(--color-border);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.issue-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
 }
 .issue-card--high {
   border-right-color: #ef4444;
@@ -1240,9 +1275,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
 }
 .issue-card-headline {
   margin: 0 0 0.45rem;
-  font-size: 0.98rem;
+  font-size: 0.86rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--color-heading);
 }
 .issue-card-field-line {

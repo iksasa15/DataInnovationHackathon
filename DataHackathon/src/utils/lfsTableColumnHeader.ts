@@ -262,7 +262,20 @@ export function resolveLfsTableColumnHeader(
   let shortLabel: string
   if (ov) shortLabel = ov
   else if (fullQuestion) shortLabel = abbreviateLfsHeaderText(fullQuestion, 36)
-  else shortLabel = technicalId
+  else {
+    /** حقول مثل q_301_desc بدون ميتاداتا مباشرة — نشتق المسمى من الحقل الأساسي (q_301) */
+    const descFrom = /^(.+)_desc$/i.exec(technicalId)
+    if (descFrom?.[1]) {
+      const baseResolved = resolveLfsTableColumnHeader(descFrom[1], meta)
+      if (baseResolved.shortLabel !== descFrom[1].trim()) {
+        shortLabel = baseResolved.shortLabel
+      } else {
+        shortLabel = technicalId
+      }
+    } else {
+      shortLabel = technicalId
+    }
+  }
 
   return {
     category,
