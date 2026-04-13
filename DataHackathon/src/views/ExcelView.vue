@@ -22,6 +22,10 @@ import type {
   ValidationError,
 } from '../services/api'
 import { LOGO_AIN_SRC } from '../constants/branding'
+import {
+  buildAnalysisExportReportHtml,
+  type AnalysisExportInsightsFull,
+} from '../utils/analysisExportReportHtml'
 
 interface ValidationResult {
   confidence_score: number
@@ -524,40 +528,64 @@ const modifications = computed(() => {
   return out
 })
 
-function buildReportText(): string {
-  const lines: string[] = []
-  lines.push('=== تقرير التحليل والتعديلات ===')
-  lines.push('')
-  if (batchResult.value?.stats) {
-    const s = batchResult.value.stats
-    lines.push('--- ملخص التحليل ---')
-    lines.push(`إجمالي السجلات: ${s.total}`)
-    lines.push(`بها أخطاء: ${s.errors}`)
-    lines.push(`تحذيرات: ${s.warnings}`)
-    lines.push(`سليمة: ${s.valid}`)
-    lines.push(`متوسط الثقة: ${s.avg_confidence}%`)
-    lines.push('')
+function buildInsightsFullExport(): AnalysisExportInsightsFull | null {
+  const ir = insightsReport.value
+  if (!ir?.report) return null
+  const agg = ir.aggregates
+  const mostRepeatedRows = (agg?.most_repeated ?? []).slice(0, 40).map((r) => ({
+    fieldLabel: columnHeaderLabel(r.field),
+    count: r.count,
+    message: r.message,
+  }))
+  const topFieldsRows = (agg?.fields_by_errors_desc ?? []).slice(0, 20).map((r) => ({
+    fieldLabel: columnHeaderLabel(r.field),
+    error_mentions: r.error_mentions,
+  }))
+  return {
+    provider: ir.provider,
+    message: ir.message,
+    summaryAr: ir.report.summary_ar,
+    mostRepeatedInsightsAr: ir.report.most_repeated_insights_ar,
+    rareAndIsolatedAr: ir.report.rare_and_isolated_ar,
+    leastProblematicFieldsAr: ir.report.least_problematic_fields_ar?.trim() || undefined,
+    recommendations: ir.report.recommendations_ar ?? [],
+    priorityFieldLabels: (ir.report.priority_fields_ar ?? []).map((f) => columnHeaderLabel(f)),
+    total_error_occurrences: agg?.total_error_occurrences,
+    unique_error_types: agg?.unique_error_types,
+    singleton_count: agg?.singleton_count,
+    mostRepeatedRows,
+    topFieldsRows,
   }
-  lines.push('--- الأخطاء والتحذيرات المرصودة (حسب الصف) ---')
-  let hasIssues = false
+}
+
+function buildReportHtml(): string {
+  const baseName = fileName.value.replace(/\.[^.]+$/, '') || 'export'
+  const issueSections: {
+    rowNum: number
+    statusAr: string
+    summary: string
+    problems: string[]
+  }[] = []
+  const noIssuesMessage = 'لا توجد أخطاء أو تحذيرات مرصودة.'
   for (const row of rows.value) {
     if (!row.validation || (row.validation.status === 'valid' && !row.validation.errors?.length)) continue
-    hasIssues = true
     const d = getRowDetails(row)
-    lines.push(`صف ${row.row_index + 1}: ${row.validation.status === 'error' ? 'خطأ' : 'تحذير'} — ${d.summary ?? row.validation.summary ?? ''}`)
-    for (const p of d.problems) lines.push(`  • ${p}`)
+    issueSections.push({
+      rowNum: row.row_index + 1,
+      statusAr: row.validation.status === 'error' ? 'خطأ' : 'تحذير',
+      summary: d.summary ?? row.validation.summary ?? '',
+      problems: d.problems,
+    })
   }
-  if (!hasIssues) lines.push('لا توجد أخطاء أو تحذيرات مرصودة.')
-  lines.push('')
-  lines.push('--- التعديلات التي أجراها المستخدم ---')
-  if (modifications.value.length === 0) {
-    lines.push('لم يتم تعديل أي خلية.')
-  } else {
-    for (const m of modifications.value) {
-      lines.push(`صف ${m.row_index + 1}، العمود «${m.col}»: من «${m.oldVal}» إلى «${m.newVal}»`)
-    }
-  }
-  return lines.join('\n')
+  return buildAnalysisExportReportHtml({
+    documentTitle: `تقرير التحليل — ${baseName}`,
+    sourceFileLabel: fileName.value || baseName,
+    stats: batchResult.value?.stats ?? null,
+    insightsFull: buildInsightsFullExport(),
+    issueSections,
+    noIssuesMessage,
+    modifications: modifications.value,
+  })
 }
 
 function downloadBlob(blob: Blob, name: string) {
@@ -597,7 +625,7 @@ function exportFileOnly() {
 function exportFileAndReport() {
   const baseName = fileName.value.replace(/\.[^.]+$/, '') || 'export'
   exportFileOnly()
-  downloadBlob(new Blob([buildReportText()], { type: 'text/plain;charset=utf-8' }), `${baseName}_تقرير.txt`)
+  downloadBlob(new Blob([buildReportHtml()], { type: 'text/html;charset=utf-8' }), `${baseName}_تقرير.html`)
 }
 
 /** ملخص المشاكل والاقتراحات للصف (لعمود التفاصيل) */
@@ -685,7 +713,11 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
               📥 تحميل الملف
             </button>
-            <button class="btn btn-export btn-sm" @click="exportFileAndReport" title="تصدير الملف المعدّل مع التقرير">
+            <button
+              class="btn btn-export btn-sm"
+              @click="exportFileAndReport"
+              title="تصدير الملف المعدّل مع تقرير HTML بنفس هوية المنصة"
+            >
               💾 حفظ وتصدير + التقرير
             </button>
           </div>

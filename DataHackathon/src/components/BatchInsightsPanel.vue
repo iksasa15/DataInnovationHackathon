@@ -35,6 +35,29 @@ const props = defineProps<{
 
 const agg = computed(() => props.insightsReport?.aggregates)
 
+/**
+ * تجميع ترتيب الحقول حسب المسمى المعروض: نفس السؤال قد يظهر لمرتين
+ * (مثل q_301 و q_301_desc) فيُدمَجان في شريط واحد بجمع الإشارات.
+ */
+const aggregatedFieldsByErrorsDesc = computed(() => {
+  const raw = agg.value?.fields_by_errors_desc ?? []
+  if (!raw.length) return []
+  const map = new Map<string, { error_mentions: number; sourceFields: string[] }>()
+  for (const r of raw) {
+    const label = props.columnLabel(r.field).replace(/\s+/g, ' ').trim()
+    const prev = map.get(label)
+    if (prev) {
+      prev.error_mentions += r.error_mentions
+      if (!prev.sourceFields.includes(r.field)) prev.sourceFields.push(r.field)
+    } else {
+      map.set(label, { error_mentions: r.error_mentions, sourceFields: [r.field] })
+    }
+  }
+  return [...map.entries()]
+    .map(([fieldLabel, v]) => ({ fieldLabel, ...v }))
+    .sort((a, b) => b.error_mentions - a.error_mentions || a.fieldLabel.localeCompare(b.fieldLabel, 'ar'))
+})
+
 const statusDonutData = computed<ChartData<'doughnut'>>(() => {
   const s = props.batchStats
   const v = s?.valid ?? 0
@@ -72,9 +95,9 @@ const statusDonutOptions = computed<ChartOptions<'doughnut'>>(() => ({
 }))
 
 const topFieldsBarData = computed<ChartData<'bar'>>(() => {
-  const rows = agg.value?.fields_by_errors_desc?.slice(0, 12) ?? []
+  const rows = aggregatedFieldsByErrorsDesc.value.slice(0, 12)
   return {
-    labels: rows.map((r) => abbrevLabel(props.columnLabel(r.field), 42)),
+    labels: rows.map((r) => abbrevLabel(r.fieldLabel, 42)),
     datasets: [
       {
         label: 'عدد إشارات الخطأ',
@@ -103,9 +126,9 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
       callbacks: {
         title: (items) => {
           const i = items[0]?.dataIndex ?? 0
-          const rows = agg.value?.fields_by_errors_desc?.slice(0, 12) ?? []
+          const rows = aggregatedFieldsByErrorsDesc.value.slice(0, 12)
           const r = rows[i]
-          return r ? props.columnLabel(r.field) : ''
+          return r?.fieldLabel ?? ''
         },
         label: (ctx) => ` ${ctx.parsed.x} إشارة`,
       },
