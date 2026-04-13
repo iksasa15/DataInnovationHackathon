@@ -50,10 +50,15 @@ const data = computed<ChartData<'line'>>(() => ({
 const options = computed<ChartOptions<'line'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  /** يمنع قصّ الخط أو نقطة النهاية عند حواف المستطيل */
+  layout: {
+    padding: { top: 12, right: 14, bottom: 8, left: 14 },
+  },
   interaction: { mode: 'index', intersect: false },
   plugins: {
     legend: { display: false },
     tooltip: {
+      displayColors: false,
       rtl: true,
       bodyAlign: 'right',
       titleAlign: 'right',
@@ -69,6 +74,7 @@ const options = computed<ChartOptions<'line'>>(() => ({
   },
   scales: {
     x: {
+      offset: true,
       grid: { display: false, drawOnChartArea: false },
       ticks: {
         display: true,
@@ -105,16 +111,21 @@ const options = computed<ChartOptions<'line'>>(() => ({
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
+  overflow: hidden;
+  border-radius: 0.65rem;
+  box-sizing: border-box;
 }
 
 /* يملأ الحاوية التي يحددها flex في الصفحة الرئيسية */
 .quality-chart :deep(> div) {
   height: 100%;
   min-height: 100%;
+  max-width: 100%;
   position: relative;
 }
 
 .quality-chart :deep(canvas) {
+  display: block;
   max-width: 100%;
 }
 </style>

@@ -135,24 +135,8 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
         <div class="dash-hero-chart-inner">
           <HomeQualityChart />
         </div>
-        <ul class="dash-hero-chart-legend" aria-label="مفتاح الرسم">
-          <li>
-            <span class="chart-legend-dot chart-legend-dot--purple" aria-hidden="true" />
-            تدرّج تحت المسار
-          </li>
-          <li>
-            <span class="chart-legend-dot chart-legend-dot--cyan" aria-hidden="true" />
-            خط المسار
-          </li>
-          <li>
-            <span class="chart-legend-dot chart-legend-dot--green" aria-hidden="true" />
-            نقطة الاستقرار
-          </li>
-        </ul>
-        <p class="dash-hero-chart-explainer">
-          المنحنى <strong>رمزي</strong> وليس ناتج تحليل ملفك. يبيّن فكرة
-          <strong>مسار تحقق الجودة</strong> من الإدخال حتى الاستقرار؛ الأرقام على المحور الرأسي
-          قيمٌ توضيحية فقط.
+        <p class="dash-hero-chart-purpose">
+          الرسمة تبين تسلسل المراحل من الإدخال والتحقق حتى المراجعة والاستقرار.
         </p>
       </div>
       <div class="dash-hero-copy">
@@ -410,29 +394,15 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
   letter-spacing: 0.02em;
 }
 
-.dash-hero-chart-explainer {
-  margin: 0.55rem 0 0;
-  padding: 0.55rem 0.65rem 0.55rem 0;
-  font-size: 0.76rem;
-  line-height: 1.55;
-  color: #475569;
-  background: rgba(65, 55, 168, 0.04);
-  border-radius: 0 0.45rem 0.45rem 0;
-  border: 1px solid rgba(65, 55, 168, 0.1);
-  border-right: 3px solid var(--ga-primary-mid);
-}
-
-.dash-hero-chart-explainer strong {
-  color: var(--ga-primary-dark);
-  font-weight: 700;
-}
-
 .dash-hero-chart-inner {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 220px;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
 }
 
 @media (min-width: 960px) {
@@ -441,43 +411,14 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
   }
 }
 
-.dash-hero-chart-legend {
-  list-style: none;
-  margin: 0.4rem 0 0;
+.dash-hero-chart-purpose {
+  margin: 0.5rem 0 0;
   padding: 0.35rem 0 0;
   border-top: 1px solid #e8e8ef;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.65rem 1rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.dash-hero-chart-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.chart-legend-dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.chart-legend-dot--purple {
-  background: var(--ga-primary-mid);
-}
-
-.chart-legend-dot--cyan {
-  background: var(--ga-cyan);
-}
-
-.chart-legend-dot--green {
-  background: var(--ga-green);
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: #334155;
+  text-align: right;
 }
 
 .dash-hero-copy {
