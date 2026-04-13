@@ -1044,14 +1044,14 @@ def _fallback_insights_report_ar(stats: dict[str, Any], agg: dict[str, Any]) -> 
         }
 
     top = agg.get("most_repeated") or []
-    top_bits = []
-    for t in top[:8]:
-        if not isinstance(t, dict):
-            continue
-        f, m, c = t.get("field"), t.get("message"), t.get("count")
-        short_m = (m or "")[:140] + ("…" if len(str(m or "")) > 140 else "")
-        top_bits.append(f"«{f}» ({c}×): {short_m}")
-    most_txt = " ".join(top_bits) if top_bits else "لا بيانات."
+    has_top_repeated = any(isinstance(t, dict) for t in top[:8])
+    # لا نكرّر قائمة الحقول هنا؛ الجدول والرسم في الواجهة هما المرجعان.
+    most_txt = (
+        "التكرارات الأعلى موضّحة في جدول «تفاصيل أعلى التكرار» والرسم؛ ابدأ التصحيح من أعلى الصفوف هناك. "
+        "هذا النص تفسير موجز فقط ولا يغني عن الأرقام التفصيلية."
+        if has_top_repeated
+        else "لا بيانات كافية لأنماط متكررة في التفاصيل."
+    )
 
     rare_n = int(agg.get("singleton_count", 0) or 0)
     rare_txt = (
@@ -1144,8 +1144,10 @@ async def generate_batch_insights_report(stats: dict[str, Any], results: list[di
         f"{json.dumps(agg, ensure_ascii=False, indent=2)}\n\n"
         "المطلوب — كائن JSON بالمفاتيح التالية بالعربية:\n"
         "summary_ar: ملخص تنفيذي في جملتين إلى أربع.\n"
-        "most_repeated_insights_ar: فقرة تحليلية عن أشد الأخطاء تكراراً وماذا تعني لجودة النموذج.\n"
-        "rare_and_isolated_ar: فقرة عن الأخطاء النادرة أو المرة الواحدة وما إن كانت مقلقة.\n"
+        "most_repeated_insights_ar: تفسير قصير (3 إلى 6 جمل كحد أقصى) لما تعنيه أشد الأخطاء تكراراً في aggregate/most_repeated؛ "
+        "لا تعدّ الأرقام أو تكرّر جدول التكرار، بل اربط السبب والأثر (جودة الإدخال، تصميم الحقل، قواعد منطقية).\n"
+        "rare_and_isolated_ar: تفسير قصير (3 إلى 6 جمل) للأخطاء النادرة أو المرة الواحدة وخطورتها رغم الندرة؛ "
+        "لا تلخّص الإحصائيات مجدداً.\n"
         "least_problematic_fields_ar: فقرة عن الحقول الأقل تكراراً للمشاكل (من الحقول التي وُجد لها خطأ).\n"
         "recommendations_ar: مصفوفة نصوص، 5 إلى 10 توصيات عملية للمُدخل أو لمصمم الاستبيان.\n"
         "priority_fields_ar: مصفوفة أسماء حقول تستحق الأولوية في المراجعة.\n"

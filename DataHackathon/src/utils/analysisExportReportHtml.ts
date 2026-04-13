@@ -104,6 +104,17 @@ function renderInsightsFullSection(ins: AnalysisExportInsightsFull): string {
       ? `<div class="prio-wrap">${ins.priorityFieldLabels.map((p) => `<span class="prio-chip">${escapeHtml(p)}</span>`).join('')}</div>`
       : ''
 
+  const interpretRepeated =
+    ins.mostRepeatedInsightsAr?.trim() !== ''
+      ? `<h3>تفسير أعلى التكرار</h3>
+    <div class="ins-text">${escapeHtml(ins.mostRepeatedInsightsAr)}</div>`
+      : ''
+  const interpretRare =
+    ins.rareAndIsolatedAr?.trim() !== ''
+      ? `<h3>تفسير الأخطاء النادرة أو المعزولة</h3>
+    <div class="ins-text">${escapeHtml(ins.rareAndIsolatedAr)}</div>`
+      : ''
+
   return `
   <section class="card card-insights">
     <h2>تقرير نهاية التحليل (كامل)</h2>
@@ -112,10 +123,12 @@ function renderInsightsFullSection(ins: AnalysisExportInsightsFull): string {
     ${metrics}
     <h3>الملخص التنفيذي</h3>
     <div class="ins-text">${escapeHtml(ins.summaryAr)}</div>
-    <h3>الأخطاء الأكثر تكراراً (تحليل)</h3>
-    <div class="ins-text">${escapeHtml(ins.mostRepeatedInsightsAr)}</div>
-    <h3>أخطاء نادرة أو معزولة</h3>
-    <div class="ins-text">${escapeHtml(ins.rareAndIsolatedAr)}</div>
+    <h3>تفاصيل أعلى التكرار (حقل + رسالة)</h3>
+    ${mrTable || '<p class="muted">لا توجد بيانات.</p>'}
+    <h3>أكثر الحقول إشارات للخطأ</h3>
+    ${topFields || '<p class="muted">لا توجد بيانات.</p>'}
+    ${interpretRepeated}
+    ${interpretRare}
     ${
       ins.leastProblematicFieldsAr?.trim()
         ? `<h3>حقول بأقل تكرار للمشاكل</h3><div class="ins-text">${escapeHtml(ins.leastProblematicFieldsAr)}</div>`
@@ -125,10 +138,6 @@ function renderInsightsFullSection(ins: AnalysisExportInsightsFull): string {
     ${prio || '<p class="muted">—</p>'}
     <h3>اقتراحات عملية</h3>
     ${recs}
-    <h3>تفاصيل أعلى التكرار (حقل + رسالة)</h3>
-    ${mrTable || '<p class="muted">لا توجد بيانات.</p>'}
-    <h3>أكثر الحقول إشارات للخطأ</h3>
-    ${topFields || '<p class="muted">لا توجد بيانات.</p>'}
   </section>`
 }
 

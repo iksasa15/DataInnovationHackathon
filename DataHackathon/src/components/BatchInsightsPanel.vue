@@ -195,6 +195,19 @@ const mostRepeatedFieldGroups = computed((): MostRepeatedFieldGroup[] => {
 /** صفوف الجدول المفتوحة (حقل → تفاصيل الرسائل) */
 const freqRowOpen = ref<Record<string, boolean>>({})
 
+/** طيّ النص التفسيري الطويل */
+const insightExpanded = ref({ repeated: false, rare: false })
+const INSIGHT_COLLAPSE_LEN = 420
+
+function insightNeedsToggle(text: string | undefined): boolean {
+  return !!text && text.trim().length > INSIGHT_COLLAPSE_LEN
+}
+
+function toggleInsight(kind: 'repeated' | 'rare') {
+  if (kind === 'repeated') insightExpanded.value = { ...insightExpanded.value, repeated: !insightExpanded.value.repeated }
+  else insightExpanded.value = { ...insightExpanded.value, rare: !insightExpanded.value.rare }
+}
+
 function toggleFreqField(field: string) {
   freqRowOpen.value = { ...freqRowOpen.value, [field]: !freqRowOpen.value[field] }
 }
@@ -281,40 +294,6 @@ function isFreqOpen(field: string): boolean {
         </div>
       </div>
 
-      <!-- نصوص تحليلية -->
-      <div class="batch-insights-grid">
-        <div class="batch-insights-block">
-          <h4 class="batch-insights-h4">الأخطاء الأكثر تكراراً</h4>
-          <p class="batch-insights-body">{{ insightsReport.report.most_repeated_insights_ar }}</p>
-        </div>
-        <div class="batch-insights-block">
-          <h4 class="batch-insights-h4">أخطاء نادرة أو معزولة</h4>
-          <p class="batch-insights-body">{{ insightsReport.report.rare_and_isolated_ar }}</p>
-        </div>
-      </div>
-
-      <div v-if="insightsReport.report.priority_fields_ar?.length" class="batch-insights-priority">
-        <span class="batch-insights-priority-label">أولوية المراجعة</span>
-        <span
-          v-for="(pf, i) in insightsReport.report.priority_fields_ar"
-          :key="'pf' + i"
-          class="batch-insights-chip"
-        >
-          {{ columnLabel(pf) }}
-        </span>
-      </div>
-
-      <!-- توصيات -->
-      <div v-if="insightsReport.report.recommendations_ar?.length" class="insights-recs-section">
-        <h4 class="insights-recs-title">اقتراحات عملية</h4>
-        <ul class="insights-recs-grid">
-          <li v-for="(rec, ri) in insightsReport.report.recommendations_ar" :key="'rec' + ri" class="insights-rec-card">
-            <span class="insights-rec-icon" aria-hidden="true">✓</span>
-            <span class="insights-rec-text">{{ rec }}</span>
-          </li>
-        </ul>
-      </div>
-
       <div v-if="mostRepeatedFieldGroups.length" class="batch-insights-table-wrap batch-insights-freq-wrap">
         <span class="batch-insights-table-caption">تفاصيل أعلى التكرار (حقل + رسالة)</span>
         <p class="batch-insights-freq-hint">
@@ -372,6 +351,75 @@ function isFreqOpen(field: string): boolean {
             </template>
           </table>
         </div>
+      </div>
+
+      <!-- تفسير نصي -->
+      <div
+        v-if="
+          insightsReport.report.most_repeated_insights_ar?.trim() ||
+          insightsReport.report.rare_and_isolated_ar?.trim()
+        "
+        class="batch-insights-grid batch-insights-grid--interpret"
+      >
+        <div
+          v-if="insightsReport.report.most_repeated_insights_ar?.trim()"
+          class="batch-insights-block"
+        >
+          <h4 class="batch-insights-h4">تفسير أعلى التكرار</h4>
+          <p
+            class="batch-insights-body"
+            :class="{ 'batch-insights-body--clamped': insightNeedsToggle(insightsReport.report.most_repeated_insights_ar) && !insightExpanded.repeated }"
+          >
+            {{ insightsReport.report.most_repeated_insights_ar }}
+          </p>
+          <button
+            v-if="insightNeedsToggle(insightsReport.report.most_repeated_insights_ar)"
+            type="button"
+            class="batch-insights-toggle"
+            @click="toggleInsight('repeated')"
+          >
+            {{ insightExpanded.repeated ? 'طيّ' : 'عرض المزيد' }}
+          </button>
+        </div>
+        <div v-if="insightsReport.report.rare_and_isolated_ar?.trim()" class="batch-insights-block">
+          <h4 class="batch-insights-h4">تفسير الأخطاء النادرة أو المعزولة</h4>
+          <p
+            class="batch-insights-body"
+            :class="{ 'batch-insights-body--clamped': insightNeedsToggle(insightsReport.report.rare_and_isolated_ar) && !insightExpanded.rare }"
+          >
+            {{ insightsReport.report.rare_and_isolated_ar }}
+          </p>
+          <button
+            v-if="insightNeedsToggle(insightsReport.report.rare_and_isolated_ar)"
+            type="button"
+            class="batch-insights-toggle"
+            @click="toggleInsight('rare')"
+          >
+            {{ insightExpanded.rare ? 'طيّ' : 'عرض المزيد' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="insightsReport.report.priority_fields_ar?.length" class="batch-insights-priority">
+        <span class="batch-insights-priority-label">أولوية المراجعة</span>
+        <span
+          v-for="(pf, i) in insightsReport.report.priority_fields_ar"
+          :key="'pf' + i"
+          class="batch-insights-chip"
+        >
+          {{ columnLabel(pf) }}
+        </span>
+      </div>
+
+      <!-- توصيات -->
+      <div v-if="insightsReport.report.recommendations_ar?.length" class="insights-recs-section">
+        <h4 class="insights-recs-title">اقتراحات عملية</h4>
+        <ul class="insights-recs-grid">
+          <li v-for="(rec, ri) in insightsReport.report.recommendations_ar" :key="'rec' + ri" class="insights-rec-card">
+            <span class="insights-rec-icon" aria-hidden="true">✓</span>
+            <span class="insights-rec-text">{{ rec }}</span>
+          </li>
+        </ul>
       </div>
     </article>
   </section>
@@ -620,6 +668,34 @@ function isFreqOpen(field: string): boolean {
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.batch-insights-grid--interpret {
+  margin-top: 0.25rem;
+}
+
+.batch-insights-body--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.batch-insights-toggle {
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  color: var(--ga-primary-dark);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.batch-insights-toggle:hover {
+  opacity: 0.85;
 }
 
 .batch-insights-block {
