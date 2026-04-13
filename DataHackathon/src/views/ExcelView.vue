@@ -221,43 +221,12 @@ const analyzeButtonLabel = computed(() => {
   return '🔍 تحليل (نموذج لغوي + قواعد)'
 })
 
-/** ملخص تنبيهات بأسباب (مثل التحليل بنموذج لغوي) — يظهر بعد كل تحليل ناجح */
+/** اقتراحات على مستوى الدفعة (فوق الجدول) — بدون قائمة تنبيهات ولا أعداد تحذيرات */
 const analysisNotice = computed(() => {
   if (!batchResult.value || isProcessing.value) return null
   const br = batchResult.value
   const st = br.stats
   if (!st) return null
-
-  type Item = {
-    field: string
-    fieldLabel: string
-    message: string
-    severity?: string
-    rule_id?: number
-    message_en?: string
-  }
-  const items: Item[] = []
-  const seen = new Set<string>()
-  for (const r of br.results) {
-    const errs = r.errors || []
-    for (const e of errs) {
-      const msg = typeof e.message === 'string' ? e.message : String(e.message ?? '')
-      const key = `${e.field}|${msg}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      const ex = e as ValidationError & { rule_id?: number; message_en?: string }
-      items.push({
-        field: e.field,
-        fieldLabel: columnHeaderLabel(e.field),
-        message: msg,
-        severity: e.severity,
-        rule_id: ex.rule_id,
-        message_en: ex.message_en,
-      })
-      if (items.length >= 18) break
-    }
-    if (items.length >= 18) break
-  }
 
   const suggestions: string[] = []
   const sugSeen = new Set<string>()
@@ -273,14 +242,7 @@ const analysisNotice = computed(() => {
   }
 
   const allClear = st.errors === 0 && st.warnings === 0
-  return {
-    items,
-    suggestions,
-    totalErrors: st.errors,
-    totalWarnings: st.warnings,
-    allClear,
-    hasRowLevelIssues: items.length > 0,
-  }
+  return { suggestions, allClear }
 })
 
 /** خريطة تفاصيل كل صف (ملخص مشاكل + اقتراحات) لتجنب إعادة الحساب في القالب */
@@ -968,50 +930,32 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         >
       </div>
 
-      <!-- نتيجة التحليل — تنبيهات فقط؛ الاقتراحات قسم منفصل (فوق الجدول) -->
+      <!-- نتيجة التحليل — اقتراحات فقط (فوق الجدول؛ بدون تنبيهات ولا تحذيرات) -->
       <div
-        v-if="analysisNotice && !analysisNotice.allClear"
-        class="analysis-notice-card"
+        v-if="analysisNotice && analysisNotice.suggestions.length > 0"
+        class="analysis-notice-card analysis-notice-card--suggestions-only"
         role="status"
       >
         <div class="analysis-notice-head">
-          <span class="analysis-notice-icon" aria-hidden="true">⚠</span>
+          <span class="analysis-notice-icon" aria-hidden="true">💡</span>
           <div>
-            <h3 class="analysis-notice-title">نتيجة التحليل — تنبيهات فقط</h3>
-            <p class="analysis-notice-meta">
-              {{ analysisNotice.totalErrors }} صف بحالة خطأ · {{ analysisNotice.totalWarnings }} تحذير
-              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
-              <span v-else-if="batchResult?.provider === 'rules'" class="tag-rules">قواعد فقط</span>
-              <span v-else-if="batchResult?.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
+            <h3 class="analysis-notice-title">نتيجة التحليل — اقتراحات فقط</h3>
+            <p v-if="batchResult?.provider" class="analysis-notice-meta">
+              <span v-if="batchResult.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
+              <span v-else-if="batchResult.provider === 'rules'" class="tag-rules">قواعد فقط</span>
+              <span v-else-if="batchResult.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
             </p>
           </div>
         </div>
-        <ul v-if="analysisNotice.items.length" class="analysis-notice-list">
-          <li v-for="(it, idx) in analysisNotice.items" :key="idx" class="analysis-notice-li">
-            <span class="notice-field">{{ it.fieldLabel }}</span>
-            <span class="notice-msg">{{ it.message }}</span>
-            <span v-if="it.rule_id != null" class="notice-rule">قاعدة {{ it.rule_id }}</span>
-            <span v-if="it.message_en" class="notice-en" dir="ltr">{{ it.message_en }}</span>
+        <ul class="analysis-notice-suggestions">
+          <li
+            v-for="(sg, sgi) in analysisNotice.suggestions"
+            :key="'sg' + sgi"
+            class="suggestion-li"
+          >
+            {{ sg }}
           </li>
         </ul>
-        <p
-          v-else-if="analysisNotice.totalErrors + analysisNotice.totalWarnings > 0"
-          class="analysis-notice-fallback"
-        >
-          وُجدت مشاكل في الصفوف — راجع ألوان الخلايا أو عمود «تفاصيل» والتبويبات أعلاه.
-        </p>
-        <div v-if="analysisNotice.suggestions.length" class="analysis-notice-suggestions-block">
-          <h4 class="analysis-notice-suggestions-title">اقتراحات</h4>
-          <ul class="analysis-notice-suggestions">
-            <li
-              v-for="(sg, sgi) in analysisNotice.suggestions"
-              :key="'sg' + sgi"
-              class="suggestion-li"
-            >
-              💡 {{ sg }}
-            </li>
-          </ul>
-        </div>
       </div>
 
       <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
@@ -1462,6 +1406,10 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border: 1px solid rgba(245, 158, 11, 0.45);
   border-radius: 0.65rem;
 }
+.analysis-notice-card--suggestions-only {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.07), rgba(139, 92, 246, 0.05));
+  border-color: rgba(99, 102, 241, 0.32);
+}
 .analysis-notice-head {
   display: flex;
   align-items: flex-start;
@@ -1536,19 +1484,8 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   color: var(--color-text);
   opacity: 0.9;
 }
-.analysis-notice-suggestions-block {
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgba(245, 158, 11, 0.35);
-}
-.analysis-notice-suggestions-title {
-  margin: 0 0 0.45rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--color-heading);
-}
 .analysis-notice-suggestions {
-  margin: 0;
+  margin: 0.35rem 0 0;
   padding-right: 1rem;
   list-style: none;
   font-size: 0.82rem;

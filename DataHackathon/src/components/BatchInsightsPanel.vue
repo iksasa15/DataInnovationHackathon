@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Bar, Doughnut } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -12,7 +12,14 @@ import {
   BarElement,
 } from 'chart.js'
 import type { ChartData, ChartOptions } from 'chart.js'
-import type { BatchInsightsResponse, BatchStats } from '../services/api'
+import type { BatchErrorFrequencyItem, BatchInsightsResponse, BatchStats } from '../services/api'
+
+interface MostRepeatedFieldGroup {
+  field: string
+  fieldLabel: string
+  rows: BatchErrorFrequencyItem[]
+  totalCount: number
+}
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale, LinearScale, BarElement)
 ChartJS.defaults.font.family = "'Frutiger LT Arabic', 'Segoe UI', system-ui, sans-serif"
@@ -136,6 +143,42 @@ const showFieldCharts = computed(() => {
 
 const showAnyChart = computed(() => showStatusChart.value || showFieldCharts.value)
 const chartsSideBySide = computed(() => showStatusChart.value && showFieldCharts.value)
+
+/** تجميع أعلى التكرار حسب الحقل (نفس الصفوف الـ14) — الحقل الواحد مع رسائله معاً */
+const mostRepeatedFieldGroups = computed((): MostRepeatedFieldGroup[] => {
+  const raw = agg.value?.most_repeated?.slice(0, 14) ?? []
+  if (!raw.length) return []
+  const map = new Map<string, BatchErrorFrequencyItem[]>()
+  for (const item of raw) {
+    const list = map.get(item.field) ?? []
+    list.push(item)
+    map.set(item.field, list)
+  }
+  const groups: MostRepeatedFieldGroup[] = []
+  for (const [field, rows] of map) {
+    rows.sort((a, b) => b.count - a.count || a.message.localeCompare(b.message, 'ar'))
+    const totalCount = rows.reduce((s, r) => s + r.count, 0)
+    groups.push({
+      field,
+      fieldLabel: props.columnLabel(field),
+      rows,
+      totalCount,
+    })
+  }
+  groups.sort((a, b) => b.totalCount - a.totalCount || a.field.localeCompare(b.field, 'ar'))
+  return groups
+})
+
+/** صفوف الجدول المفتوحة (حقل → تفاصيل الرسائل) */
+const freqRowOpen = ref<Record<string, boolean>>({})
+
+function toggleFreqField(field: string) {
+  freqRowOpen.value = { ...freqRowOpen.value, [field]: !freqRowOpen.value[field] }
+}
+
+function isFreqOpen(field: string): boolean {
+  return !!freqRowOpen.value[field]
+}
 </script>
 
 <template>
@@ -249,24 +292,65 @@ const chartsSideBySide = computed(() => showStatusChart.value && showFieldCharts
         </ul>
       </div>
 
-      <div v-if="insightsReport.aggregates?.most_repeated?.length" class="batch-insights-table-wrap">
+      <div v-if="mostRepeatedFieldGroups.length" class="batch-insights-table-wrap batch-insights-freq-wrap">
         <span class="batch-insights-table-caption">تفاصيل أعلى التكرار (حقل + رسالة)</span>
-        <table class="batch-insights-table">
-          <thead>
-            <tr>
-              <th>الحقل</th>
-              <th>التكرار</th>
-              <th>الرسالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, ti) in insightsReport.aggregates.most_repeated.slice(0, 14)" :key="'fr' + ti">
-              <td>{{ columnLabel(row.field) }}</td>
-              <td>{{ row.count }}</td>
-              <td class="batch-insights-msg-cell">{{ row.message }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <p class="batch-insights-freq-hint">
+          جدول ملخّص لكل حقل؛ اضغط على الصف لعرض جدول الرسائل والتكرار لكل رسالة.
+        </p>
+        <div class="freq-table-scroll">
+          <table class="batch-insights-table batch-insights-table--freq-main">
+            <thead>
+              <tr>
+                <th class="freq-col-expand" scope="col" aria-hidden="true"></th>
+                <th scope="col">الحقل</th>
+                <th scope="col" class="freq-col-tag">المعرف</th>
+                <th scope="col" class="freq-col-num">إجمالي التكرار</th>
+                <th scope="col" class="freq-col-num">عدد الرسائل</th>
+              </tr>
+            </thead>
+            <template v-for="g in mostRepeatedFieldGroups" :key="g.field">
+              <tbody class="freq-tbody-group">
+                <tr
+                  class="freq-main-row"
+                  :class="{ 'freq-main-row--open': isFreqOpen(g.field) }"
+                  tabindex="0"
+                  role="button"
+                  :aria-expanded="isFreqOpen(g.field)"
+                  :aria-controls="'freq-detail-' + g.field"
+                  @click="toggleFreqField(g.field)"
+                  @keydown.enter.prevent="toggleFreqField(g.field)"
+                  @keydown.space.prevent="toggleFreqField(g.field)"
+                >
+                  <td class="freq-col-expand">
+                    <span class="freq-chevron" aria-hidden="true">{{ isFreqOpen(g.field) ? '▼' : '◀' }}</span>
+                  </td>
+                  <td class="freq-cell-field">{{ g.fieldLabel }}</td>
+                  <td class="freq-cell-code" dir="ltr">{{ g.field }}</td>
+                  <td class="freq-cell-num">{{ g.totalCount }}</td>
+                  <td class="freq-cell-num">{{ g.rows.length }}</td>
+                </tr>
+                <tr v-show="isFreqOpen(g.field)" class="freq-detail-row">
+                  <td :id="'freq-detail-' + g.field" class="freq-detail-cell" colspan="5" role="region">
+                    <table class="batch-insights-table batch-insights-table--nested">
+                      <thead>
+                        <tr>
+                          <th class="freq-th-count" scope="col">التكرار</th>
+                          <th scope="col">الرسالة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, ri) in g.rows" :key="'r' + ri + row.message.slice(0, 48)">
+                          <td class="freq-count-cell">{{ row.count }}</td>
+                          <td class="batch-insights-msg-cell">{{ row.message }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </table>
+        </div>
       </div>
     </article>
   </section>
@@ -624,6 +708,123 @@ const chartsSideBySide = computed(() => showStatusChart.value && showFieldCharts
   font-weight: 600;
   margin-bottom: 0.4rem;
   color: var(--color-heading);
+}
+
+.batch-insights-freq-wrap .batch-insights-table-caption {
+  margin-bottom: 0.35rem;
+}
+
+.batch-insights-freq-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--color-text);
+  opacity: 0.82;
+}
+
+.freq-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.55rem;
+  background: var(--color-background);
+}
+
+.batch-insights-table--freq-main {
+  margin: 0;
+  min-width: min(100%, 36rem);
+}
+
+.freq-tbody-group {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.freq-tbody-group:last-child {
+  border-bottom: none;
+}
+
+.freq-main-row {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.freq-main-row:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.freq-main-row:focus-visible {
+  outline: 2px solid var(--ga-primary);
+  outline-offset: -2px;
+}
+
+.freq-main-row--open {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.freq-col-expand {
+  width: 2.25rem;
+  text-align: center;
+  vertical-align: middle;
+  padding-inline: 0.25rem !important;
+}
+
+.freq-chevron {
+  display: inline-block;
+  font-size: 0.65rem;
+  opacity: 0.85;
+  color: var(--ga-primary-dark);
+}
+
+.freq-cell-field {
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.freq-col-tag {
+  max-width: 9rem;
+}
+
+.freq-cell-code {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.88;
+}
+
+.freq-col-num {
+  width: 6.5rem;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.freq-cell-num {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-weight: 600;
+}
+
+.freq-detail-row .freq-detail-cell {
+  padding: 0.5rem 0.65rem 0.65rem !important;
+  background: var(--color-background-soft);
+  border-top: 1px dashed rgba(99, 102, 241, 0.25);
+  vertical-align: top;
+}
+
+.batch-insights-table--nested {
+  width: 100%;
+  font-size: 0.76rem;
+  margin: 0;
+}
+
+.freq-th-count {
+  width: 4.5rem;
+  white-space: nowrap;
+}
+
+.freq-count-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  vertical-align: top;
 }
 
 .batch-insights-table {

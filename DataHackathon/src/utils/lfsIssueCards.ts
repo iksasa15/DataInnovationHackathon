@@ -95,5 +95,13 @@ export function buildFilteredIssueCards(
       })
     }
   }
+
+  const severityOrder: Record<FlatIssueCard['severityKey'], number> = { high: 0, medium: 1, low: 2 }
+  out.sort((a, b) => {
+    const bySev = severityOrder[a.severityKey] - severityOrder[b.severityKey]
+    if (bySev !== 0) return bySev
+    return a.rowDisplay - b.rowDisplay
+  })
+
   return out
 }
