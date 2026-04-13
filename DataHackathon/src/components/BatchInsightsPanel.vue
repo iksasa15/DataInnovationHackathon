@@ -221,7 +221,7 @@ function isFreqOpen(field: string): boolean {
   <section class="batch-insights-section" aria-label="تقرير نهاية التحليل">
     <div v-if="insightsLoading" class="batch-insights-loading">
       <span class="batch-insights-spinner" aria-hidden="true"></span>
-      جارٍ إعداد تقرير نهاية التحليل (ملخص، رسوم، وتوصيات)…
+      جارٍ إعداد تقرير نهاية التحليل (ملخص، رسوم، وجداول)…
     </div>
     <div v-else-if="insightsError" class="batch-insights-error" role="alert">
       {{ insightsError }}
@@ -409,17 +409,6 @@ function isFreqOpen(field: string): boolean {
         >
           {{ columnLabel(pf) }}
         </span>
-      </div>
-
-      <!-- توصيات -->
-      <div v-if="insightsReport.report.recommendations_ar?.length" class="insights-recs-section">
-        <h4 class="insights-recs-title">اقتراحات عملية</h4>
-        <ul class="insights-recs-grid">
-          <li v-for="(rec, ri) in insightsReport.report.recommendations_ar" :key="'rec' + ri" class="insights-rec-card">
-            <span class="insights-rec-icon" aria-hidden="true">✓</span>
-            <span class="insights-rec-text">{{ rec }}</span>
-          </li>
-        </ul>
       </div>
     </article>
   </section>
@@ -738,61 +727,9 @@ function isFreqOpen(field: string): boolean {
   font-size: 0.74rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.28);
-  color: #4338ca;
-}
-
-.insights-recs-section {
-  margin-bottom: 1rem;
-}
-
-.insights-recs-title {
-  margin: 0 0 0.55rem;
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: var(--color-heading);
-}
-
-.insights-recs-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 0.5rem;
-}
-
-.insights-rec-card {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.5rem;
-  background: rgba(16, 185, 129, 0.06);
-  border: 1px solid rgba(16, 185, 129, 0.22);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: var(--color-text);
-}
-
-.insights-rec-icon {
-  flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(16, 185, 129, 0.2);
-  color: #047857;
-  font-size: 0.7rem;
-  font-weight: 800;
-}
-
-.insights-rec-text {
-  flex: 1;
-  min-width: 0;
+  background: var(--ga-primary-soft);
+  border: 1px solid rgba(65, 55, 168, 0.22);
+  color: var(--ga-primary-dark);
 }
 
 .batch-insights-table-wrap {

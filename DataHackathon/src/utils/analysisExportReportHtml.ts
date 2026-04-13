@@ -31,7 +31,6 @@ export interface AnalysisExportInsightsFull {
   rareAndIsolatedAr: string
   /** إن وُجد في استجابة الخادم */
   leastProblematicFieldsAr?: string
-  recommendations: string[]
   priorityFieldLabels: string[]
   total_error_occurrences?: number
   unique_error_types?: number
@@ -95,10 +94,6 @@ function renderInsightsFullSection(ins: AnalysisExportInsightsFull): string {
   </tbody>
 </table>`
       : ''
-  const recs =
-    ins.recommendations.length > 0
-      ? `<ul class="rec-list">${ins.recommendations.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
-      : '<p class="muted">لا توجد اقتراحات عملية في التقرير.</p>'
   const prio =
     ins.priorityFieldLabels.length > 0
       ? `<div class="prio-wrap">${ins.priorityFieldLabels.map((p) => `<span class="prio-chip">${escapeHtml(p)}</span>`).join('')}</div>`
@@ -136,8 +131,6 @@ function renderInsightsFullSection(ins: AnalysisExportInsightsFull): string {
     }
     <h3>أولوية المراجعة</h3>
     ${prio || '<p class="muted">—</p>'}
-    <h3>اقتراحات عملية</h3>
-    ${recs}
   </section>`
 }
 
@@ -214,6 +207,7 @@ export function buildAnalysisExportReportHtml(opts: {
   <style>
     :root {
       --ga-primary: #4137a8;
+      --ga-primary-mid: #5247b8;
       --ga-primary-dark: #322a82;
       --ga-primary-soft: #ebe8f7;
       --ga-surface: #f4f6f9;
@@ -362,16 +356,14 @@ export function buildAnalysisExportReportHtml(opts: {
       border: 1px solid #eef2f7;
     }
     .ins-table { margin-top: 0.35rem; margin-bottom: 0.75rem; }
-    .rec-list { margin: 0.35rem 0 0.75rem; padding-right: 1.2rem; font-size: 0.88rem; }
-    .rec-list li { margin-bottom: 0.35rem; }
     .prio-wrap { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.35rem 0 0.75rem; }
     .prio-chip {
       font-size: 0.76rem;
       padding: 0.2rem 0.5rem;
       border-radius: 999px;
-      background: rgba(99, 102, 241, 0.12);
-      border: 1px solid rgba(99, 102, 241, 0.28);
-      color: #4338ca;
+      background: var(--ga-primary-soft);
+      border: 1px solid rgba(65, 55, 168, 0.22);
+      color: var(--ga-primary-dark);
     }
     footer {
       text-align: center;

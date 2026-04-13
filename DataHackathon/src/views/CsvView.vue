@@ -433,7 +433,6 @@ function buildInsightsFullExport(): AnalysisExportInsightsFull | null {
     mostRepeatedInsightsAr: ir.report.most_repeated_insights_ar,
     rareAndIsolatedAr: ir.report.rare_and_isolated_ar,
     leastProblematicFieldsAr: ir.report.least_problematic_fields_ar?.trim() || undefined,
-    recommendations: ir.report.recommendations_ar ?? [],
     priorityFieldLabels: (ir.report.priority_fields_ar ?? []).map((f) => columnHeaderLabel(f)),
     total_error_occurrences: agg?.total_error_occurrences,
     unique_error_types: agg?.unique_error_types,
