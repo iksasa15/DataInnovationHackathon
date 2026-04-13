@@ -135,25 +135,25 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
         <div class="dash-hero-chart-inner">
           <HomeQualityChart />
         </div>
-        <p class="dash-hero-chart-explainer">
-          وضعنا هذا المنحنى لأن <strong>الجودة</strong> ليست رقماً لحظياً واحداً، بل
-          <strong>مسار تحقق</strong> يمر بمراحل: إدخال، تحقق وقواعد، ثم استقرار السجل. المنحنى التصاعدي
-          يعبّر عن هذه الفكرة بصرياً؛ القيم المعروضة تمثيلية ولا تعكس عيّنتك الفعلية بعد التحليل.
-        </p>
-        <ul class="dash-hero-chart-legend" aria-label="مفتاح الألوان">
+        <ul class="dash-hero-chart-legend" aria-label="مفتاح الرسم">
           <li>
             <span class="chart-legend-dot chart-legend-dot--purple" aria-hidden="true" />
-            بنفسجي — أساسي
+            تدرّج تحت المسار
           </li>
           <li>
             <span class="chart-legend-dot chart-legend-dot--cyan" aria-hidden="true" />
-            سماوي — تمييز
+            خط المسار
           </li>
           <li>
             <span class="chart-legend-dot chart-legend-dot--green" aria-hidden="true" />
-            أخضر — إيجابي
+            نقطة الاستقرار
           </li>
         </ul>
+        <p class="dash-hero-chart-explainer">
+          المنحنى <strong>رمزي</strong> وليس ناتج تحليل ملفك. يبيّن فكرة
+          <strong>مسار تحقق الجودة</strong> من الإدخال حتى الاستقرار؛ الأرقام على المحور الرأسي
+          قيمٌ توضيحية فقط.
+        </p>
       </div>
       <div class="dash-hero-copy">
         <h2 id="hero-heading" class="dash-hero-title">رفع جودة البيانات من المصدر</h2>
@@ -383,6 +383,10 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
 }
 
 .dash-hero-chart {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   background: #fff;
   border-radius: 1.25rem;
   border: 1px solid #e8e8ef;
@@ -391,7 +395,7 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
 }
 
 .dash-hero-chart-head {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .dash-hero-chart-titles {
@@ -407,14 +411,15 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
 }
 
 .dash-hero-chart-explainer {
-  margin: 0.75rem 0 0;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.78rem;
-  line-height: 1.65;
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0.65rem 0.55rem 0;
+  font-size: 0.76rem;
+  line-height: 1.55;
   color: #475569;
   background: rgba(65, 55, 168, 0.04);
-  border-radius: 0.5rem;
+  border-radius: 0 0.45rem 0.45rem 0;
   border: 1px solid rgba(65, 55, 168, 0.1);
+  border-right: 3px solid var(--ga-primary-mid);
 }
 
 .dash-hero-chart-explainer strong {
@@ -423,18 +428,29 @@ const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
 }
 
 .dash-hero-chart-inner {
-  height: 240px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  width: 100%;
+}
+
+@media (min-width: 960px) {
+  .dash-hero-chart-inner {
+    min-height: 280px;
+  }
 }
 
 .dash-hero-chart-legend {
   list-style: none;
-  margin: 0.65rem 0 0;
-  padding: 0;
+  margin: 0.4rem 0 0;
+  padding: 0.35rem 0 0;
+  border-top: 1px solid #e8e8ef;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.85rem 1.25rem;
-  font-size: 0.72rem;
+  gap: 0.65rem 1rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #64748b;
 }

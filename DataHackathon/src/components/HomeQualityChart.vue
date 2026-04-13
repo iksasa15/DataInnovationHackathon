@@ -15,10 +15,11 @@ import type { ChartData, ChartOptions } from 'chart.js'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
 ChartJS.defaults.font.family = "'Frutiger LT Arabic', 'Segoe UI', system-ui, sans-serif"
 
-const labels = ['', '', '', '', '', '']
+/** مراحل مسار الجودة (توضيحي) — يوضح المحور بدل الفراغ */
+const phaseLabels = ['انطلاق', 'إدخال', 'تحقق', 'قواعد', 'مراجعة', 'استقرار']
 
 const data = computed<ChartData<'line'>>(() => ({
-  labels,
+  labels: phaseLabels,
   datasets: [
     {
       label: 'مسار تحقق الجودة (توضيحي)',
@@ -58,14 +59,26 @@ const options = computed<ChartOptions<'line'>>(() => ({
       titleAlign: 'right',
       callbacks: {
         title: () => '',
-        label: (items) => ` ${items.formattedValue}٪ — قيمة تمثيلية على مسار الجودة`,
+        label: (items) => {
+          const i = items.dataIndex
+          const phase = phaseLabels[i] ?? ''
+          return ` ${phase}: ${items.formattedValue}٪ (توضيحي)`
+        },
       },
     },
   },
   scales: {
     x: {
-      grid: { display: false },
-      ticks: { display: false },
+      grid: { display: false, drawOnChartArea: false },
+      ticks: {
+        display: true,
+        maxRotation: 0,
+        minRotation: 0,
+        autoSkip: false,
+        font: { size: 10, family: "'Frutiger LT Arabic', 'Segoe UI', system-ui, sans-serif" },
+        color: '#64748b',
+        padding: 4,
+      },
       border: {
         display: true,
         color: 'rgba(148, 163, 184, 0.45)',
@@ -74,6 +87,7 @@ const options = computed<ChartOptions<'line'>>(() => ({
     y: {
       display: false,
       min: 0,
+      suggestedMax: 40,
     },
   },
 }))
@@ -88,7 +102,19 @@ const options = computed<ChartOptions<'line'>>(() => ({
 <style scoped>
 .quality-chart {
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+/* يملأ الحاوية التي يحددها flex في الصفحة الرئيسية */
+.quality-chart :deep(> div) {
   height: 100%;
-  min-height: 200px;
+  min-height: 100%;
+  position: relative;
+}
+
+.quality-chart :deep(canvas) {
+  max-width: 100%;
 }
 </style>

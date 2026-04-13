@@ -76,6 +76,22 @@ const statusDonutData = computed<ChartData<'doughnut'>>(() => {
   }
 })
 
+/** أغمق = تكرار إشارات خطأ أعلى، أفتح = أقل (ضمن الشرائح المعروضة) */
+function barColorsForErrorMentions(values: number[]): string[] {
+  if (!values.length) return []
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const lo = { r: 232, g: 228, b: 247 }
+  const hi = { r: 30, g: 27, b: 75 }
+  return values.map((v) => {
+    const t = max === min ? 0.5 : (v - min) / (max - min)
+    const r = Math.round(lo.r + (hi.r - lo.r) * t)
+    const g = Math.round(lo.g + (hi.g - lo.g) * t)
+    const b = Math.round(lo.b + (hi.b - lo.b) * t)
+    return `rgb(${r}, ${g}, ${b})`
+  })
+}
+
 const statusDonutOptions = computed<ChartOptions<'doughnut'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -96,13 +112,14 @@ const statusDonutOptions = computed<ChartOptions<'doughnut'>>(() => ({
 
 const topFieldsBarData = computed<ChartData<'bar'>>(() => {
   const rows = aggregatedFieldsByErrorsDesc.value.slice(0, 12)
+  const vals = rows.map((r) => r.error_mentions)
   return {
     labels: rows.map((r) => abbrevLabel(r.fieldLabel, 42)),
     datasets: [
       {
         label: 'عدد إشارات الخطأ',
-        data: rows.map((r) => r.error_mentions),
-        backgroundColor: '#4137a8',
+        data: vals,
+        backgroundColor: barColorsForErrorMentions(vals),
         borderRadius: 6,
         maxBarThickness: 22,
       },

@@ -1,17 +1,10 @@
-/** تقرير تصدير HTML بنفس ألوان وهوية المنصة (ليس نصاً عادياً) */
+/** تقرير تصدير HTML (UTF-8، RTL) — هوية بصرية منصة عين (#4137A8) */
 
 export interface AnalysisExportIssueSection {
   rowNum: number
   statusAr: string
   summary: string
   problems: string[]
-}
-
-export interface AnalysisExportModification {
-  row_index: number
-  col: string
-  oldVal: string
-  newVal: string
 }
 
 export interface BatchStatsLike {
@@ -152,9 +145,8 @@ export function buildAnalysisExportReportHtml(opts: {
   insightsFull: AnalysisExportInsightsFull | null
   issueSections: AnalysisExportIssueSection[]
   noIssuesMessage: string
-  modifications: AnalysisExportModification[]
 }): string {
-  const { documentTitle, sourceFileLabel, stats, insightsFull, issueSections, noIssuesMessage, modifications } = opts
+  const { documentTitle, sourceFileLabel, stats, insightsFull, issueSections, noIssuesMessage } = opts
 
   const statsBlock = stats
     ? `
@@ -186,16 +178,6 @@ export function buildAnalysisExportReportHtml(opts: {
           .join('')
       : `<p class="muted">${escapeHtml(noIssuesMessage)}</p>`
 
-  const modsRows =
-    modifications.length > 0
-      ? modifications
-          .map(
-            (m) =>
-              `<tr><td>${escapeHtml(String(m.row_index + 1))}</td><td dir="auto">${escapeHtml(m.col)}</td><td dir="auto">${escapeHtml(m.oldVal)}</td><td dir="auto">${escapeHtml(m.newVal)}</td></tr>`,
-          )
-          .join('')
-      : `<tr><td colspan="4" class="muted">لم يتم تعديل أي خلية.</td></tr>`
-
   const insightsSection = insightsFull ? renderInsightsFullSection(insightsFull) : renderInsightsMissingSection()
 
   return `<!DOCTYPE html>
@@ -212,7 +194,9 @@ export function buildAnalysisExportReportHtml(opts: {
       --ga-primary-soft: #ebe8f7;
       --ga-surface: #f4f6f9;
       --text: #1e293b;
+      --heading: #0f172a;
       --muted: #64748b;
+      --border: #e2e8f0;
       --bad: #b91c1c;
       --bad-bg: #fef2f2;
       --warn: #b45309;
@@ -229,27 +213,27 @@ export function buildAnalysisExportReportHtml(opts: {
       color: var(--text);
       background: var(--ga-surface);
     }
-    .brand {
+    .report-header {
       background: linear-gradient(135deg, #3d3690 0%, var(--ga-primary) 45%, #322a78 100%);
       color: #fff;
       padding: 1.25rem 1.5rem 1.35rem;
       box-shadow: 0 2px 12px rgba(50, 42, 130, 0.25);
     }
-    .brand h1 {
+    .report-header h1 {
       margin: 0 0 0.35rem;
       font-size: 1.35rem;
       font-weight: 800;
       letter-spacing: 0.02em;
     }
-    .brand .sub {
+    .report-header .report-sub {
       margin: 0;
       font-size: 0.88rem;
       opacity: 0.92;
     }
-    .brand .file {
-      margin-top: 0.65rem;
+    .report-header .report-file {
+      margin: 0.65rem 0 0;
       font-size: 0.8rem;
-      opacity: 0.85;
+      opacity: 0.88;
       word-break: break-word;
     }
     main { max-width: 52rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
@@ -365,21 +349,13 @@ export function buildAnalysisExportReportHtml(opts: {
       border: 1px solid rgba(65, 55, 168, 0.22);
       color: var(--ga-primary-dark);
     }
-    footer {
-      text-align: center;
-      padding: 1rem;
-      font-size: 0.78rem;
-      color: var(--muted);
-      border-top: 1px solid #e2e8f0;
-      background: #fff;
-    }
   </style>
 </head>
 <body>
-  <header class="brand">
-    <h1>منصة عين</h1>
-    <p class="sub">تقرير التحليل والتعديلات — نسخة كاملة</p>
-    <p class="file">الملف: ${escapeHtml(sourceFileLabel)}</p>
+  <header class="report-header">
+    <h1>${escapeHtml(documentTitle)}</h1>
+    <p class="report-sub">تقرير التحليل — نسخة للتصدير</p>
+    <p class="report-file">الملف: ${escapeHtml(sourceFileLabel)}</p>
   </header>
   <main>
     ${statsBlock}
@@ -388,22 +364,7 @@ export function buildAnalysisExportReportHtml(opts: {
       <h2>الأخطاء والتحذيرات المرصودة (حسب الصف)</h2>
       ${issuesHtml}
     </section>
-    <section class="card">
-      <h2>التعديلات التي أجراها المستخدم</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>الصف</th>
-            <th>العمود</th>
-            <th>قبل</th>
-            <th>بعد</th>
-          </tr>
-        </thead>
-        <tbody>${modsRows}</tbody>
-      </table>
-    </section>
   </main>
-  <footer>هوية بصرية: الهيئة العامة للإحصاء — ألوان الأساسي #4137A8 · منصة عين</footer>
 </body>
 </html>`
 }

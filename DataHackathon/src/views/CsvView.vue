@@ -399,20 +399,6 @@ function scoreColor(score: number) {
   return '#ef4444'
 }
 
-const modifications = computed(() => {
-  const out: { row_index: number; col: string; oldVal: string; newVal: string }[] = []
-  for (const row of rows.value) {
-    const orig = row.originalData
-    const edit = row.editableData ?? orig
-    for (const col of columns.value) {
-      const o = orig[col] != null ? String(orig[col]) : ''
-      const n = edit[col] != null ? String(edit[col]) : ''
-      if (o !== n) out.push({ row_index: row.row_index, col, oldVal: o, newVal: n })
-    }
-  }
-  return out
-})
-
 function buildInsightsFullExport(): AnalysisExportInsightsFull | null {
   const ir = insightsReport.value
   if (!ir?.report) return null
@@ -468,7 +454,6 @@ function buildReportHtml(): string {
     insightsFull: buildInsightsFullExport(),
     issueSections,
     noIssuesMessage,
-    modifications: modifications.value,
   })
 }
 
