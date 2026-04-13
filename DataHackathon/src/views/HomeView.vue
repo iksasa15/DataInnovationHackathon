@@ -1,62 +1,74 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import HomeQualityChart from '../components/HomeQualityChart.vue'
+import HomePageIcon from '../components/HomePageIcon.vue'
+import type { HomeIconName } from '../components/HomePageIcon.vue'
 import { LOGO_AIN_SRC } from '../constants/branding'
 
-const summaryCards = [
+const summaryCards: {
+  icon: HomeIconName
+  title: string
+  desc: string
+  accent: string
+}[] = [
   {
-    icon: '🛡',
+    icon: 'shield',
     title: 'كشف التناقضات',
     desc: 'تحليل دلالي للحقول مع قواعد LFS لاكتشاف التعارضات المعنوية والمنطقية.',
     accent: 'purple',
   },
   {
-    icon: '📈',
+    icon: 'trending-up',
     title: 'الشفافية والاحترافية',
     desc: 'تقارير واضحة وتكامل آمن مع واجهة API للفرق التقنية.',
     accent: 'blue',
   },
   {
-    icon: '✅',
+    icon: 'check-circle',
     title: 'جودة السجلات',
     desc: 'تنبيهات فورية ودرجات ثقة عند مخالفة قواعد الجودة.',
     accent: 'green',
   },
   {
-    icon: '📋',
+    icon: 'clipboard-list',
     title: 'وضوح البيانات',
     desc: 'ميتاداتا الحقول والأسئلة لسياق أوضح أثناء المراجعة.',
     accent: 'teal',
   },
 ]
 
-const services = [
+const services: {
+  icon: HomeIconName
+  title: string
+  desc: string
+  accent: string
+}[] = [
   {
-    icon: '🧠',
+    icon: 'sparkles',
     title: 'التحليل الدلالي للحقول',
     desc: 'اكتشاف التناقضات المعنوية والمنطقية بين الحقول.',
     accent: 'purple',
   },
   {
-    icon: '📊',
+    icon: 'table',
     title: 'معالجة البيانات الجدولية',
     desc: 'رفع Excel أو CSV وتحليل الصفوف مع تقارير واضحة.',
     accent: 'cyan',
   },
   {
-    icon: '🔌',
+    icon: 'plug',
     title: 'التكامل عبر API',
     desc: 'ربط الواجهة بخادم FastAPI لتبادل البيانات بكفاءة.',
     accent: 'green',
   },
   {
-    icon: '✅',
+    icon: 'clipboard-check',
     title: 'فحص جودة الاستبيانات',
     desc: 'تحقق من اتساق الإجابات مع سياق الاستبيان.',
     accent: 'cyan',
   },
   {
-    icon: '🔍',
+    icon: 'search',
     title: 'كشف الأخطاء والتكرار',
     desc: 'تنبيهات ودرجات ثقة واقتراحات تصحيحية.',
     accent: 'purple',
@@ -74,18 +86,23 @@ const steps = [
   { n: 3, title: 'عرض النتائج والتوصيات', desc: 'ملخص، تفاصيل لكل صف، وتصفية حسب الشدة.', tone: 'green' },
 ]
 
-const highlights = [
-  { icon: '⚡', title: 'سرعة المعالجة', desc: 'معالجة دقيقة وتغذية راجعة سريعة في الاستمارة.', accent: 'purple' },
-  { icon: '🎯', title: 'دقة التحليل', desc: 'دمج قواعد LFS مع تحليل دلالي عند التفعيل.', accent: 'blue' },
-  { icon: '👆', title: 'سهولة الاستخدام', desc: 'واجهة عربية ومسارات واضحة للاستبيان والملفات.', accent: 'green' },
-  { icon: '⚙️', title: 'أتمتة كاملة', desc: 'تقليل المراجعة اليدوية المتكررة للبيانات المتشابهة.', accent: 'indigo' },
+const highlights: {
+  icon: HomeIconName
+  title: string
+  desc: string
+  accent: string
+}[] = [
+  { icon: 'zap', title: 'سرعة المعالجة', desc: 'معالجة دقيقة وتغذية راجعة سريعة في الاستمارة.', accent: 'purple' },
+  { icon: 'target', title: 'دقة التحليل', desc: 'دمج قواعد LFS مع تحليل دلالي عند التفعيل.', accent: 'blue' },
+  { icon: 'layout', title: 'سهولة الاستخدام', desc: 'واجهة عربية ومسارات واضحة للاستبيان والملفات.', accent: 'green' },
+  { icon: 'settings', title: 'أتمتة كاملة', desc: 'تقليل المراجعة اليدوية المتكررة للبيانات المتشابهة.', accent: 'indigo' },
 ]
 
-const flowNodes = [
-  { label: 'رفع', icon: '📤', tone: 'purple' },
-  { label: 'تحليل', icon: '🤖', tone: 'blue' },
-  { label: 'نتائج', icon: '📋', tone: 'green' },
-  { label: 'تدقيق', icon: '✔', tone: 'violet' },
+const flowNodes: { label: string; icon: HomeIconName; tone: string }[] = [
+  { label: 'رفع', icon: 'upload', tone: 'purple' },
+  { label: 'تحليل', icon: 'cpu', tone: 'blue' },
+  { label: 'نتائج', icon: 'file-text', tone: 'green' },
+  { label: 'تدقيق', icon: 'circle-check', tone: 'violet' },
 ]
 </script>
 
@@ -99,7 +116,9 @@ const flowNodes = [
         class="summary-card"
         :class="'summary-card--' + c.accent"
       >
-        <span class="summary-card-icon" aria-hidden="true">{{ c.icon }}</span>
+        <span class="summary-card-icon-wrap">
+          <HomePageIcon :name="c.icon" :size="26" />
+        </span>
         <h2 class="summary-card-title">{{ c.title }}</h2>
         <p class="summary-card-desc">{{ c.desc }}</p>
       </article>
@@ -109,11 +128,18 @@ const flowNodes = [
     <section class="dash-hero" aria-labelledby="hero-heading">
       <div class="dash-hero-chart">
         <div class="dash-hero-chart-head">
-          <h3 class="dash-hero-chart-title">مسار الجودة</h3>
+          <div class="dash-hero-chart-titles">
+            <h3 class="dash-hero-chart-title">مسار تحقق الجودة</h3>
+          </div>
         </div>
         <div class="dash-hero-chart-inner">
           <HomeQualityChart />
         </div>
+        <p class="dash-hero-chart-explainer">
+          وضعنا هذا المنحنى لأن <strong>الجودة</strong> ليست رقماً لحظياً واحداً، بل
+          <strong>مسار تحقق</strong> يمر بمراحل: إدخال، تحقق وقواعد، ثم استقرار السجل. المنحنى التصاعدي
+          يعبّر عن هذه الفكرة بصرياً؛ القيم المعروضة تمثيلية ولا تعكس عيّنتك الفعلية بعد التحليل.
+        </p>
         <ul class="dash-hero-chart-legend" aria-label="مفتاح الألوان">
           <li>
             <span class="chart-legend-dot chart-legend-dot--purple" aria-hidden="true" />
@@ -130,13 +156,7 @@ const flowNodes = [
         </ul>
       </div>
       <div class="dash-hero-copy">
-        <span class="hero-badge">
-          <span class="hero-badge-logo-chip" aria-hidden="true">
-            <img :src="LOGO_AIN_SRC" alt="" width="28" height="28" decoding="async" />
-          </span>
-          منصة عين
-        </span>
-        <h2 id="hero-heading" class="dash-hero-title">تحقق ذكي من جودة البيانات والاستبيانات</h2>
+        <h2 id="hero-heading" class="dash-hero-title">رفع جودة البيانات من المصدر</h2>
         <p class="dash-hero-text">
           منصة ذكية ترفع جودة البيانات من المصدر عبر كشف التناقضات أثناء الإدخال، باستخدام الذكاء الاصطناعي لتحليل فوري
           يعزز الدقة ويقلل الجهد ويدعم القرار.
@@ -160,7 +180,9 @@ const flowNodes = [
             class="service-card"
             :class="'service-card--accent-' + s.accent"
           >
-            <span class="service-icon" aria-hidden="true">{{ s.icon }}</span>
+            <span class="service-icon-wrap">
+              <HomePageIcon :name="s.icon" :size="22" />
+            </span>
             <h3 class="service-title">{{ s.title }}</h3>
             <p class="service-desc">{{ s.desc }}</p>
           </article>
@@ -188,7 +210,9 @@ const flowNodes = [
           <div class="how-flow">
             <template v-for="(node, idx) in flowNodes" :key="node.label">
               <div class="how-node" :class="'how-node--' + node.tone">
-                <span class="how-node-icon">{{ node.icon }}</span>
+                <span class="how-node-icon-wrap">
+                  <HomePageIcon :name="node.icon" :size="18" />
+                </span>
                 <span class="how-node-label">{{ node.label }}</span>
               </div>
               <div v-if="idx < flowNodes.length - 1" class="how-connector" />
@@ -209,7 +233,9 @@ const flowNodes = [
             class="highlight-card"
             :class="'highlight-card--' + h.accent"
           >
-            <span class="highlight-icon" aria-hidden="true">{{ h.icon }}</span>
+            <span class="highlight-icon-wrap">
+              <HomePageIcon :name="h.icon" :size="28" />
+            </span>
             <h3 class="highlight-title">{{ h.title }}</h3>
             <p class="highlight-desc">{{ h.desc }}</p>
           </article>
@@ -308,10 +334,22 @@ const flowNodes = [
   border-top-color: var(--ga-cyan);
 }
 
-.summary-card-icon {
-  font-size: 1.5rem;
-  display: block;
+.summary-card-icon-wrap {
+  display: flex;
   margin-bottom: 0.45rem;
+  color: var(--ga-primary);
+}
+
+.summary-card--blue .summary-card-icon-wrap {
+  color: var(--ga-cyan);
+}
+
+.summary-card--green .summary-card-icon-wrap {
+  color: var(--ga-green);
+}
+
+.summary-card--teal .summary-card-icon-wrap {
+  color: #0d9488;
 }
 
 .summary-card-title {
@@ -353,17 +391,35 @@ const flowNodes = [
 }
 
 .dash-hero-chart-head {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.dash-hero-chart-titles {
+  text-align: right;
 }
 
 .dash-hero-chart-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--ga-primary-dark);
   letter-spacing: 0.02em;
+}
+
+.dash-hero-chart-explainer {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: #475569;
+  background: rgba(65, 55, 168, 0.04);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(65, 55, 168, 0.1);
+}
+
+.dash-hero-chart-explainer strong {
+  color: var(--ga-primary-dark);
+  font-weight: 700;
 }
 
 .dash-hero-chart-inner {
@@ -413,41 +469,6 @@ const flowNodes = [
   flex-direction: column;
   justify-content: center;
   padding: 0.25rem 0;
-}
-
-.hero-badge {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 0.45rem;
-  padding: 0.2rem 0.65rem 0.2rem 0.2rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  background: var(--ga-primary-soft);
-  color: var(--ga-primary-dark);
-  margin-bottom: 0.65rem;
-}
-
-.hero-badge-logo-chip {
-  flex-shrink: 0;
-  width: 1.85rem;
-  height: 1.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  padding: 0.12rem;
-  box-sizing: border-box;
-}
-
-.hero-badge-logo-chip img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
 }
 
 .dash-hero-title {
@@ -592,10 +613,18 @@ const flowNodes = [
   transform: translateY(-2px);
 }
 
-.service-icon {
-  display: block;
-  font-size: 1.4rem;
+.service-icon-wrap {
+  display: flex;
   margin-bottom: 0.4rem;
+  color: var(--service-icon-c, var(--ga-primary));
+}
+
+.service-card--accent-cyan .service-icon-wrap {
+  --service-icon-c: var(--ga-cyan);
+}
+
+.service-card--accent-green .service-icon-wrap {
+  --service-icon-c: var(--ga-green);
 }
 
 .service-title {
@@ -725,8 +754,11 @@ const flowNodes = [
   background: linear-gradient(180deg, #fff 0%, rgba(65, 55, 168, 0.12) 100%);
 }
 
-.how-node-icon {
-  font-size: 1.15rem;
+.how-node-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ga-primary-dark);
 }
 
 .how-node-label {
@@ -806,10 +838,27 @@ const flowNodes = [
   border-top-color: var(--ga-primary-dark);
 }
 
-.highlight-icon {
-  font-size: 1.85rem;
-  display: block;
+.highlight-icon-wrap {
+  display: flex;
+  justify-content: center;
   margin-bottom: 0.4rem;
+  color: var(--ga-primary);
+}
+
+.highlight-card--purple .highlight-icon-wrap {
+  color: var(--ga-primary-mid);
+}
+
+.highlight-card--blue .highlight-icon-wrap {
+  color: var(--ga-cyan);
+}
+
+.highlight-card--green .highlight-icon-wrap {
+  color: var(--ga-green);
+}
+
+.highlight-card--indigo .highlight-icon-wrap {
+  color: var(--ga-primary-dark);
 }
 
 .highlight-title {

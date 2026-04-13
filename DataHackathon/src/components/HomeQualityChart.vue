@@ -21,7 +21,7 @@ const data = computed<ChartData<'line'>>(() => ({
   labels,
   datasets: [
     {
-      label: 'مسار الجودة',
+      label: 'مسار تحقق الجودة (توضيحي)',
       data: [14, 22, 18, 28, 24, 36],
       borderColor: '#00b2df',
       borderWidth: 2.5,
@@ -58,7 +58,7 @@ const options = computed<ChartOptions<'line'>>(() => ({
       titleAlign: 'right',
       callbacks: {
         title: () => '',
-        label: (items) => ` ${items.formattedValue}٪ تقريبي`,
+        label: (items) => ` ${items.formattedValue}٪ — قيمة تمثيلية على مسار الجودة`,
       },
     },
   },
