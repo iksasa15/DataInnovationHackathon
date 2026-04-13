@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import iconv from 'iconv-lite'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
@@ -163,6 +163,18 @@ const filteredIssueCards = computed(() =>
     columnHeaderLabel,
   ),
 )
+
+const ISSUE_CARDS_INITIAL = 3
+const issueCardsExpanded = ref(false)
+const displayedIssueCards = computed(() => {
+  const all = filteredIssueCards.value
+  if (issueCardsExpanded.value || all.length <= ISSUE_CARDS_INITIAL) return all
+  return all.slice(0, ISSUE_CARDS_INITIAL)
+})
+
+watch([severityFilterBtn, issueKindFilterBtn], () => {
+  issueCardsExpanded.value = false
+})
 
 const stats = computed(() => batchResult.value?.stats ?? null)
 
@@ -754,57 +766,6 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         {{ analysisError }}
       </div>
 
-      <!-- تنبيه بأسباب (نفس منطق التحليل بنموذج لغوي + القواعد) -->
-      <div
-        v-if="analysisNotice && !analysisNotice.allClear"
-        class="analysis-notice-card"
-        role="status"
-      >
-        <div class="analysis-notice-head">
-          <span class="analysis-notice-icon" aria-hidden="true">⚠</span>
-          <div>
-            <h3 class="analysis-notice-title">نتيجة التحليل — تنبيهات</h3>
-            <p class="analysis-notice-meta">
-              {{ analysisNotice.totalErrors }} صف بحالة خطأ · {{ analysisNotice.totalWarnings }} تحذير
-              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
-              <span v-else-if="batchResult?.provider === 'rules'" class="tag-rules">قواعد فقط</span>
-              <span v-else-if="batchResult?.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
-            </p>
-          </div>
-        </div>
-        <ul v-if="analysisNotice.items.length" class="analysis-notice-list">
-          <li v-for="(it, idx) in analysisNotice.items" :key="idx" class="analysis-notice-li">
-            <span class="notice-field">{{ it.fieldLabel }}</span>
-            <span class="notice-msg">{{ it.message }}</span>
-            <span v-if="it.rule_id != null" class="notice-rule">قاعدة {{ it.rule_id }}</span>
-            <span v-if="it.message_en" class="notice-en" dir="ltr">{{ it.message_en }}</span>
-          </li>
-        </ul>
-        <p
-          v-else-if="analysisNotice.totalErrors + analysisNotice.totalWarnings > 0"
-          class="analysis-notice-fallback"
-        >
-          وُجدت مشاكل في الصفوف — راجع ألوان الخلايا أو عمود «تفاصيل» والتبويبات أعلاه.
-        </p>
-        <ul v-if="analysisNotice.suggestions.length" class="analysis-notice-suggestions">
-          <li
-            v-for="(sg, sgi) in analysisNotice.suggestions"
-            :key="'sg' + sgi"
-            class="suggestion-li"
-          >
-            💡 {{ sg }}
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
-        <span class="ok-icon">✓</span>
-        <div>
-          <strong>لم يُرصد خطأ أو تحذير في الدفعة</strong>
-          <p class="ok-sub">يمكنك مراجعة الجدول أو تصدير التقرير إن رغبت.</p>
-        </div>
-      </div>
-
       <!-- Stats bar (after analysis) -->
       <div v-if="stats" class="stats-bar">
         <div class="stat-card stat-total">
@@ -964,26 +925,37 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       <section v-if="batchResult" class="issue-cards-section" aria-label="قائمة التنبيهات">
         <h3 class="issue-cards-title">التنبيهات ({{ filteredIssueCards.length }})</h3>
         <p v-if="!filteredIssueCards.length" class="issue-cards-empty">لا توجد تنبيهات تطابق الفلتر الحالي.</p>
-        <ul v-else class="issue-cards-list">
-          <li
-            v-for="(c, ci) in filteredIssueCards"
-            :key="'ic' + ci + '-' + c.rowDisplay + '-' + c.fieldKey"
-            class="issue-card"
-            :class="'issue-card--' + c.severityKey"
+        <template v-else>
+          <ul class="issue-cards-list">
+            <li
+              v-for="(c, ci) in displayedIssueCards"
+              :key="'ic' + ci + '-' + c.rowDisplay + '-' + c.fieldKey"
+              class="issue-card"
+              :class="'issue-card--' + c.severityKey"
+            >
+              <div class="issue-card-head">
+                <span class="issue-card-sev-badge">{{ c.severityLabel }}</span>
+                <span class="issue-card-row-num">الصف {{ c.rowDisplay }}</span>
+              </div>
+              <h4 class="issue-card-headline">{{ c.title }}</h4>
+              <p class="issue-card-field-line">العمود الرئيسي: {{ c.fieldLabel }}</p>
+              <p v-if="c.confidence != null" class="issue-card-confidence">
+                الثقة: {{ Math.round(c.confidence) }}٪
+              </p>
+              <span class="issue-card-kind-pill">{{ c.kindLabel }}</span>
+              <p v-if="c.body && c.body.trim() !== c.title.trim()" class="issue-card-detail">{{ c.body }}</p>
+            </li>
+          </ul>
+          <button
+            v-if="filteredIssueCards.length > ISSUE_CARDS_INITIAL"
+            type="button"
+            class="issue-cards-more-btn"
+            :aria-expanded="issueCardsExpanded"
+            @click="issueCardsExpanded = !issueCardsExpanded"
           >
-            <div class="issue-card-head">
-              <span class="issue-card-sev-badge">{{ c.severityLabel }}</span>
-              <span class="issue-card-row-num">الصف {{ c.rowDisplay }}</span>
-            </div>
-            <h4 class="issue-card-headline">{{ c.title }}</h4>
-            <p class="issue-card-field-line">العمود الرئيسي: {{ c.fieldLabel }}</p>
-            <p v-if="c.confidence != null" class="issue-card-confidence">
-              الثقة: {{ Math.round(c.confidence) }}٪
-            </p>
-            <span class="issue-card-kind-pill">{{ c.kindLabel }}</span>
-            <p v-if="c.body && c.body.trim() !== c.title.trim()" class="issue-card-detail">{{ c.body }}</p>
-          </li>
-        </ul>
+            {{ issueCardsExpanded ? 'عرض أقل' : 'المزيد' }}
+          </button>
+        </template>
       </section>
 
       <!-- Legend -->
@@ -994,6 +966,60 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         <span class="legend-tip"
           >تفاصيل الصف من «تفاصيل»؛ للخلية الملوّنة: ⓘ أو نقرتان على الحقل لعرض القاعدة والمقترحات</span
         >
+      </div>
+
+      <!-- نتيجة التحليل — تنبيهات فقط؛ الاقتراحات قسم منفصل (فوق الجدول) -->
+      <div
+        v-if="analysisNotice && !analysisNotice.allClear"
+        class="analysis-notice-card"
+        role="status"
+      >
+        <div class="analysis-notice-head">
+          <span class="analysis-notice-icon" aria-hidden="true">⚠</span>
+          <div>
+            <h3 class="analysis-notice-title">نتيجة التحليل — تنبيهات فقط</h3>
+            <p class="analysis-notice-meta">
+              {{ analysisNotice.totalErrors }} صف بحالة خطأ · {{ analysisNotice.totalWarnings }} تحذير
+              <span v-if="batchResult?.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
+              <span v-else-if="batchResult?.provider === 'rules'" class="tag-rules">قواعد فقط</span>
+              <span v-else-if="batchResult?.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
+            </p>
+          </div>
+        </div>
+        <ul v-if="analysisNotice.items.length" class="analysis-notice-list">
+          <li v-for="(it, idx) in analysisNotice.items" :key="idx" class="analysis-notice-li">
+            <span class="notice-field">{{ it.fieldLabel }}</span>
+            <span class="notice-msg">{{ it.message }}</span>
+            <span v-if="it.rule_id != null" class="notice-rule">قاعدة {{ it.rule_id }}</span>
+            <span v-if="it.message_en" class="notice-en" dir="ltr">{{ it.message_en }}</span>
+          </li>
+        </ul>
+        <p
+          v-else-if="analysisNotice.totalErrors + analysisNotice.totalWarnings > 0"
+          class="analysis-notice-fallback"
+        >
+          وُجدت مشاكل في الصفوف — راجع ألوان الخلايا أو عمود «تفاصيل» والتبويبات أعلاه.
+        </p>
+        <div v-if="analysisNotice.suggestions.length" class="analysis-notice-suggestions-block">
+          <h4 class="analysis-notice-suggestions-title">اقتراحات</h4>
+          <ul class="analysis-notice-suggestions">
+            <li
+              v-for="(sg, sgi) in analysisNotice.suggestions"
+              :key="'sg' + sgi"
+              class="suggestion-li"
+            >
+              💡 {{ sg }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
+        <span class="ok-icon">✓</span>
+        <div>
+          <strong>لم يُرصد خطأ أو تحذير في الدفعة</strong>
+          <p class="ok-sub">يمكنك مراجعة الجدول أو تصدير التقرير إن رغبت.</p>
+        </div>
       </div>
 
       <!-- Table -->
@@ -1510,8 +1536,19 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   color: var(--color-text);
   opacity: 0.9;
 }
+.analysis-notice-suggestions-block {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(245, 158, 11, 0.35);
+}
+.analysis-notice-suggestions-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
 .analysis-notice-suggestions {
-  margin: 0.65rem 0 0;
+  margin: 0;
   padding-right: 1rem;
   list-style: none;
   font-size: 0.82rem;
@@ -1826,6 +1863,24 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+.issue-cards-more-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ga-primary-dark);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 0.45rem;
+  cursor: pointer;
+  text-align: center;
+}
+.issue-cards-more-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
 }
 .issue-card {
   margin: 0;

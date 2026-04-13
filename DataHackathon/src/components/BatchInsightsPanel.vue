@@ -28,8 +28,6 @@ const props = defineProps<{
 
 const agg = computed(() => props.insightsReport?.aggregates)
 
-const leastRowsAsc = computed(() => agg.value?.fields_by_errors_asc?.slice(0, 12) ?? [])
-
 const statusDonutData = computed<ChartData<'doughnut'>>(() => {
   const s = props.batchStats
   const v = s?.valid ?? 0
@@ -82,26 +80,13 @@ const topFieldsBarData = computed<ChartData<'bar'>>(() => {
   }
 })
 
-const leastFieldsBarData = computed<ChartData<'bar'>>(() => {
-  const rows = leastRowsAsc.value
-  return {
-    labels: rows.map((r) => abbrevLabel(props.columnLabel(r.field), 42)),
-    datasets: [
-      {
-        label: 'عدد الإشارات (الأقل)',
-        data: rows.map((r) => r.error_mentions),
-        backgroundColor: '#8b7fd4',
-        borderRadius: 6,
-        maxBarThickness: 22,
-      },
-    ],
-  }
-})
-
 const barOptions = computed<ChartOptions<'bar'>>(() => ({
   indexAxis: 'y',
   responsive: true,
   maintainAspectRatio: false,
+  layout: {
+    padding: { left: 2, right: 6, top: 4, bottom: 4 },
+  },
   plugins: {
     legend: { display: false },
     tooltip: {
@@ -126,47 +111,11 @@ const barOptions = computed<ChartOptions<'bar'>>(() => ({
       grid: { color: 'rgba(15, 23, 42, 0.06)' },
     },
     y: {
-      ticks: { font: { size: 10 } },
+      ticks: { font: { size: 10 }, maxWidth: 140 },
       grid: { display: false },
     },
   },
 }))
-
-const leastBarOptions = computed<ChartOptions<'bar'>>(() => {
-  const rows = leastRowsAsc.value
-  return {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        rtl: true,
-        bodyAlign: 'right',
-        titleAlign: 'right',
-        callbacks: {
-          title: (items) => {
-            const i = items[0]?.dataIndex ?? 0
-            const r = rows[i]
-            return r ? props.columnLabel(r.field) : ''
-          },
-          label: (ctx) => ` ${ctx.parsed.x} إشارة`,
-        },
-      },
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        ticks: { stepSize: 1, font: { size: 10 } },
-        grid: { color: 'rgba(15, 23, 42, 0.06)' },
-      },
-      y: {
-        ticks: { font: { size: 10 } },
-        grid: { display: false },
-      },
-    },
-  }
-})
 
 function abbrevLabel(s: string, max: number): string {
   const t = s.replace(/\s+/g, ' ').trim()
@@ -185,7 +134,8 @@ const showFieldCharts = computed(() => {
   return (a?.fields_by_errors_desc?.length ?? 0) > 0
 })
 
-const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.length ?? 0) > 0)
+const showAnyChart = computed(() => showStatusChart.value || showFieldCharts.value)
+const chartsSideBySide = computed(() => showStatusChart.value && showFieldCharts.value)
 </script>
 
 <template>
@@ -230,28 +180,37 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
         </div>
       </div>
 
-      <!-- رسوم بيانية -->
-      <div v-if="batchStats && (showStatusChart || showFieldCharts)" class="insights-charts-wrap">
-        <div v-if="showStatusChart" class="insights-chart-card insights-chart-card--donut">
-          <h4 class="insights-chart-h4">توزيع حالة الصفوف</h4>
-          <div class="insights-chart-inner insights-chart-inner--donut">
-            <Doughnut :data="statusDonutData" :options="statusDonutOptions" />
+      <!-- الرسمان معاً في إطار واحد بلا فراغ يفصلهما -->
+      <div v-if="batchStats && showAnyChart" class="insights-charts-wrap">
+        <div v-if="chartsSideBySide" class="insights-charts-pair">
+          <div class="insights-chart-segment insights-chart-segment--bar">
+            <h4 class="insights-chart-h4">أكثر الحقول تكراراً للخطأ</h4>
+            <div class="insights-chart-inner insights-chart-inner--bar">
+              <Bar :data="topFieldsBarData" :options="barOptions" />
+            </div>
           </div>
-          <p class="insights-chart-caption">سليمة / تحذير / خطأ — حسب نتيجة التحقق لكل سجل</p>
-        </div>
-
-        <div v-if="showFieldCharts" class="insights-chart-card">
-          <h4 class="insights-chart-h4">أكثر الحقول إشارات للخطأ</h4>
-          <div class="insights-chart-inner insights-chart-inner--bar">
-            <Bar :data="topFieldsBarData" :options="barOptions" />
+          <div class="insights-charts-divider" aria-hidden="true" />
+          <div class="insights-chart-segment insights-chart-segment--donut">
+            <h4 class="insights-chart-h4">توزيع حالة الصفوف</h4>
+            <div class="insights-chart-inner insights-chart-inner--donut">
+              <Doughnut :data="statusDonutData" :options="statusDonutOptions" />
+            </div>
+            <p class="insights-chart-caption">سليمة / تحذير / خطأ — حسب نتيجة التحقق لكل سجل</p>
           </div>
         </div>
-
-        <div v-if="showLeastFieldsChart" class="insights-chart-card">
-          <h4 class="insights-chart-h4">أقل الحقول تكراراً للمشاكل</h4>
-          <p class="insights-chart-sub">ضمن الحقول التي وُجد لها خطأ على الأقل — الأقل إشارة أولاً</p>
-          <div class="insights-chart-inner insights-chart-inner--bar">
-            <Bar :data="leastFieldsBarData" :options="leastBarOptions" />
+        <div v-else class="insights-charts-row">
+          <div v-if="showFieldCharts" class="insights-chart-card">
+            <h4 class="insights-chart-h4">أكثر الحقول تكراراً للخطأ</h4>
+            <div class="insights-chart-inner insights-chart-inner--bar">
+              <Bar :data="topFieldsBarData" :options="barOptions" />
+            </div>
+          </div>
+          <div v-if="showStatusChart" class="insights-chart-card insights-chart-card--donut">
+            <h4 class="insights-chart-h4">توزيع حالة الصفوف</h4>
+            <div class="insights-chart-inner insights-chart-inner--donut">
+              <Doughnut :data="statusDonutData" :options="statusDonutOptions" />
+            </div>
+            <p class="insights-chart-caption">سليمة / تحذير / خطأ — حسب نتيجة التحقق لكل سجل</p>
           </div>
         </div>
       </div>
@@ -265,10 +224,6 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
         <div class="batch-insights-block">
           <h4 class="batch-insights-h4">أخطاء نادرة أو معزولة</h4>
           <p class="batch-insights-body">{{ insightsReport.report.rare_and_isolated_ar }}</p>
-        </div>
-        <div class="batch-insights-block">
-          <h4 class="batch-insights-h4">حقول بأقل تكرار للمشاكل</h4>
-          <p class="batch-insights-body">{{ insightsReport.report.least_problematic_fields_ar }}</p>
         </div>
       </div>
 
@@ -454,10 +409,65 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
 }
 
 .insights-charts-wrap {
+  margin-bottom: 1rem;
+}
+
+.insights-charts-pair {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0.65rem;
+  background: var(--color-background);
+  overflow: hidden;
+}
+
+.insights-chart-segment {
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.insights-chart-segment--bar {
+  flex: 1 1 0;
+}
+
+.insights-chart-segment--donut {
+  flex: 0 0 clamp(13rem, 26vw, 19rem);
+}
+
+.insights-charts-divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: var(--color-border);
+  margin: 0.65rem 0;
+}
+
+@media (max-width: 36rem) {
+  .insights-charts-pair {
+    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .insights-charts-divider {
+    width: 100%;
+    height: 1px;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .insights-chart-segment--donut {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+}
+
+.insights-charts-row {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  margin-bottom: 1rem;
 }
 
 .insights-chart-card {
@@ -478,13 +488,6 @@ const showLeastFieldsChart = computed(() => (agg.value?.fields_by_errors_asc?.le
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--color-heading);
-}
-
-.insights-chart-sub {
-  margin: -0.25rem 0 0.5rem;
-  font-size: 0.72rem;
-  color: var(--color-text);
-  opacity: 0.8;
 }
 
 .insights-chart-caption {
