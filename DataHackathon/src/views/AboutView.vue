@@ -8,6 +8,7 @@ import {
   checkHealth,
 } from '../services/api'
 import type { DiagnosticResult, HealthStatus } from '../services/api'
+import HomePageIcon from '../components/HomePageIcon.vue'
 
 const apiBase = computed(() => getApiBaseUrl())
 const apiDocsUrl = computed(() => `${getApiBaseUrl()}/docs`)
@@ -135,11 +136,12 @@ async function saveGeminiKey() {
       <p class="card-desc">فحص الاتصال، قاعدة البيانات، والنموذج اللغوي (إن وُجد) من الواجهة.</p>
       <button
         type="button"
-        class="btn btn-diagnostics"
+        class="btn btn-diagnostics btn-with-inline-icon"
         :disabled="diagLoading"
         @click="runDiagnostics"
       >
-        {{ diagLoading ? 'جاري فحص الخادم…' : '🔍 تشغيل الفحص (API + قاعدة + نموذج لغوي)' }}
+        <HomePageIcon v-if="!diagLoading" name="search" :size="18" class="btn-inline-icon" />
+        {{ diagLoading ? 'جاري فحص الخادم…' : 'تشغيل الفحص (API + قاعدة + نموذج لغوي)' }}
       </button>
       <div
         v-if="diagnosticResults?.length"
@@ -162,7 +164,10 @@ async function saveGeminiKey() {
             :class="row.ok ? 'diag-ok' : 'diag-fail'"
           >
             <div class="diag-row-head">
-              <span class="diag-icon">{{ row.ok ? '✓' : '✕' }}</span>
+              <span class="diag-icon" aria-hidden="true">
+                <HomePageIcon v-if="row.ok" name="circle-check" :size="18" />
+                <HomePageIcon v-else name="x" :size="18" />
+              </span>
               <strong class="diag-label">{{ row.label }}</strong>
               <span v-if="row.durationMs != null" class="diag-ms">{{ row.durationMs }} ms</span>
             </div>
@@ -196,12 +201,13 @@ async function saveGeminiKey() {
       </div>
       <button
         type="button"
-        class="btn-gemini"
+        class="btn-gemini btn-with-inline-icon"
         :disabled="geminiChecking"
         @click="verifyGemini"
       >
         <span v-if="geminiChecking" class="btn-gemini-spinner"></span>
-        {{ geminiChecking ? 'جاري التحقق…' : '🔗 التحقق من اتصال النموذج اللغوي' }}
+        <HomePageIcon v-else name="link" :size="18" class="btn-inline-icon" />
+        {{ geminiChecking ? 'جاري التحقق…' : 'التحقق من اتصال النموذج اللغوي' }}
       </button>
       <Transition name="gemini-msg">
         <div
@@ -334,6 +340,14 @@ async function saveGeminiKey() {
   cursor: wait;
 }
 
+.btn-with-inline-icon {
+  gap: 0.45rem;
+}
+
+.btn-inline-icon {
+  flex-shrink: 0;
+}
+
 .diagnostics-panel {
   margin-top: 1.25rem;
   padding: 1rem 1.15rem;
@@ -386,9 +400,11 @@ async function saveGeminiKey() {
 }
 
 .diag-icon {
-  font-weight: 700;
-  width: 1.25rem;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  flex-shrink: 0;
 }
 
 .diag-ok .diag-icon {

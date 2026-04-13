@@ -26,6 +26,8 @@ import {
   buildAnalysisExportReportHtml,
   type AnalysisExportInsightsFull,
 } from '../utils/analysisExportReportHtml'
+import HomePageIcon from '../components/HomePageIcon.vue'
+import type { HomeIconName } from '../components/HomePageIcon.vue'
 
 interface ValidationResult {
   confidence_score: number
@@ -219,10 +221,18 @@ async function loadInsightsReport() {
 
 const analyzeButtonLabel = computed(() => {
   if (isProcessing.value) return 'جارٍ التحليل…'
-  if (batchResult.value) return '🔄 إعادة التحليل'
-  if (analysisEngine.value === 'rules') return '⚙️ تحليل بالقواعد'
-  if (analysisEngine.value === 'gemini') return '🤖 تحليل بنموذج لغوي'
-  return '🔍 تحليل (نموذج لغوي + قواعد)'
+  if (batchResult.value) return 'إعادة التحليل'
+  if (analysisEngine.value === 'rules') return 'تحليل بالقواعد'
+  if (analysisEngine.value === 'gemini') return 'تحليل بنموذج لغوي'
+  return 'تحليل (نموذج لغوي + قواعد)'
+})
+
+const analyzeButtonIcon = computed((): HomeIconName | null => {
+  if (isProcessing.value) return null
+  if (batchResult.value) return 'refresh-cw'
+  if (analysisEngine.value === 'rules') return 'settings'
+  if (analysisEngine.value === 'gemini') return 'bot'
+  return 'search'
 })
 
 /** اقتراحات على مستوى الدفعة (فوق الجدول) — بدون قائمة تنبيهات ولا أعداد تحذيرات */
@@ -653,7 +663,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       @dragover.prevent="isDragging = true"
       @dragleave="isDragging = false"
       @drop.prevent="onDrop">
-      <div class="upload-icon">📂</div>
+      <div class="upload-icon" aria-hidden="true">
+        <HomePageIcon name="folder" :size="44" />
+      </div>
       <p class="upload-title">اسحب ملف Excel أو CSV هنا</p>
       <p class="upload-sub">أو</p>
       <div class="upload-actions">
@@ -668,7 +680,8 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           @click="loadSampleFile"
         >
           <span v-if="sampleLoading" class="btn-spinner btn-spinner--muted" />
-          {{ sampleLoading ? 'جارٍ التحميل…' : '📄 ملف تجريبي جاهز (تعارضات LFS)' }}
+          <HomePageIcon v-if="!sampleLoading" name="file-text" :size="16" class="btn-inline-icon" />
+          {{ sampleLoading ? 'جارٍ التحميل…' : 'ملف تجريبي جاهز (تعارضات LFS)' }}
         </button>
       </div>
       <p class="upload-note">يقبل: (xlsx · xls) Excel و CSV — البيانات بالإنجليزي أو العربي</p>
@@ -680,7 +693,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       <div class="toolbar">
         <div class="toolbar-main">
           <div class="file-info">
-            <span class="file-icon">📄</span>
+            <span class="file-icon" aria-hidden="true">
+              <HomePageIcon name="file-text" :size="18" />
+            </span>
             <span class="file-name">{{ fileName }}</span>
             <span class="file-rows">{{ rows.length }} سجل</span>
           </div>
@@ -689,19 +704,28 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
             <button
               class="btn btn-primary btn-sm"
               :disabled="isProcessing"
-              @click="analyzeAll">
+              @click="analyzeAll"
+            >
               <span v-if="isProcessing" class="btn-spinner"></span>
+              <HomePageIcon
+                v-else-if="analyzeButtonIcon"
+                :name="analyzeButtonIcon"
+                :size="16"
+                class="btn-inline-icon"
+              />
               {{ analyzeButtonLabel }}
             </button>
             <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
-              📥 تحميل الملف
+              <HomePageIcon name="download" :size="16" class="btn-inline-icon" />
+              تحميل الملف
             </button>
             <button
               class="btn btn-export btn-sm"
               @click="exportFileAndReport"
               title="تصدير الملف المعدّل مع تقرير HTML بنفس هوية المنصة"
             >
-              💾 حفظ وتصدير + التقرير
+              <HomePageIcon name="save" :size="16" class="btn-inline-icon" />
+              حفظ وتصدير + التقرير
             </button>
           </div>
         </div>
@@ -807,9 +831,13 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           'provider-local': batchResult.provider === 'local',
         }"
       >
-        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بنموذج لغوي</span>
-        <span v-else-if="batchResult.provider === 'rules'">
-          ✓ تم التحليل بـ <strong>قواعد الأعمال</strong> فقط (LFS Business Rules) — دون استدعاء النموذج اللغوي.
+        <span v-if="batchResult.provider === 'gemini'" class="provider-line">
+          <HomePageIcon name="circle-check" :size="16" class="provider-line-icon" />
+          تم التحليل بنموذج لغوي
+        </span>
+        <span v-else-if="batchResult.provider === 'rules'" class="provider-line">
+          <HomePageIcon name="circle-check" :size="16" class="provider-line-icon" />
+          تم التحليل بـ <strong>قواعد الأعمال</strong> فقط (LFS Business Rules) — دون استدعاء النموذج اللغوي.
         </span>
         <span v-else-if="batchResult.provider === 'local'">
           التحليل تم محلياً. لتفعيل النموذج اللغوي: أضف <code>GEMINI_API_KEY</code> (أو مفتاح المزوّد المفعّل) في ملف
@@ -954,7 +982,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         role="status"
       >
         <div class="analysis-notice-head">
-          <span class="analysis-notice-icon" aria-hidden="true">💡</span>
+          <span class="analysis-notice-icon" aria-hidden="true">
+            <HomePageIcon name="lightbulb" :size="22" />
+          </span>
           <div>
             <h3 class="analysis-notice-title">اقتراحات</h3>
             <p v-if="batchResult?.provider" class="analysis-notice-meta">
@@ -976,7 +1006,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       </div>
 
       <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
-        <span class="ok-icon">✓</span>
+        <span class="ok-icon" aria-hidden="true">
+          <HomePageIcon name="circle-check" :size="22" />
+        </span>
         <div>
           <strong>لم يُرصد خطأ أو تحذير في الدفعة</strong>
           <p class="ok-sub">يمكنك مراجعة الجدول أو تصدير التقرير إن رغبت.</p>
@@ -1233,9 +1265,26 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   box-shadow: inset 0 0 0 1px rgba(63, 61, 145, 0.12);
 }
 .upload-icon {
-  font-size: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 0.85rem;
-  opacity: 0.85;
+  color: var(--ex-purple-mid);
+  opacity: 0.9;
+}
+.btn-inline-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.provider-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.provider-line-icon {
+  flex-shrink: 0;
+  color: currentColor;
 }
 .upload-title {
   font-size: 1.15rem;
@@ -1433,7 +1482,13 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   gap: 0.65rem;
   margin-bottom: 0.75rem;
 }
-.analysis-notice-icon { font-size: 1.35rem; line-height: 1; }
+.analysis-notice-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #6366f1;
+}
 .analysis-notice-title {
   margin: 0;
   font-size: 1rem;
@@ -1523,9 +1578,11 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   color: var(--color-heading);
 }
 .analysis-notice-ok .ok-icon {
-  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   color: #059669;
-  line-height: 1.2;
 }
 .ok-sub {
   margin: 0.25rem 0 0;
@@ -1535,7 +1592,12 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   opacity: 0.85;
 }
 .file-info { display: flex; align-items: center; gap: 0.5rem; }
-.file-icon { font-size: 1.1rem; }
+.file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ex-purple-mid);
+}
 .file-name { font-weight: 600; color: var(--color-heading); font-size: 0.95rem; }
 .file-rows {
   font-size: 0.72rem;

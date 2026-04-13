@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { LOGO_AIN_SRC as logoSrc } from './constants/branding'
+import HomePageIcon from './components/HomePageIcon.vue'
 
 const route = useRoute()
 const sidebarOpen = ref(false)
@@ -23,13 +24,13 @@ const pageTitle = computed(() => {
   return 'عين'
 })
 
-const navItems = [
-  { to: '/', name: 'home', label: 'الرئيسية', icon: '📊' },
-  { to: '/pitch', name: 'pitch', label: 'عن عين', icon: '📋' },
-  { to: '/survey', name: 'survey', label: 'الحارس الدلالي', icon: '🛡' },
-  { to: '/analysis', name: 'analysis', label: 'تحليل الملف', icon: '📂' },
-  { to: '/privacy', name: 'privacy', label: 'الخصوصية', icon: '🔒' },
-] as const
+const navItems: { to: string; name: string; label: string }[] = [
+  { to: '/', name: 'home', label: 'الرئيسية' },
+  { to: '/pitch', name: 'pitch', label: 'عن عين' },
+  { to: '/survey', name: 'survey', label: 'الحارس الدلالي' },
+  { to: '/analysis', name: 'analysis', label: 'تحليل الملف' },
+  { to: '/privacy', name: 'privacy', label: 'الخصوصية' },
+]
 </script>
 
 <template>
@@ -60,7 +61,6 @@ const navItems = [
           class="sidebar-link"
           :class="{ 'sidebar-link--active': route.name === item.name }"
         >
-          <span class="sidebar-link-icon" aria-hidden="true">{{ item.icon }}</span>
           {{ item.label }}
         </RouterLink>
       </nav>
@@ -74,7 +74,9 @@ const navItems = [
           aria-label="فتح القائمة"
           @click="sidebarOpen = true"
         >
-          ☰
+          <span class="menu-toggle-icon" aria-hidden="true">
+            <HomePageIcon name="menu" :size="22" />
+          </span>
         </button>
         <div class="topbar-brand">
           <div class="topbar-logo-chip" aria-hidden="true">
@@ -175,9 +177,7 @@ const navItems = [
 }
 
 .sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
+  display: block;
   padding: 0.65rem 0.85rem;
   border-radius: 0.55rem;
   color: rgba(241, 245, 249, 0.88);
@@ -198,9 +198,11 @@ const navItems = [
   border-right: 3px solid var(--ga-cyan);
 }
 
-.sidebar-link-icon {
-  font-size: 1.1rem;
-  opacity: 0.95;
+.menu-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .topbar {

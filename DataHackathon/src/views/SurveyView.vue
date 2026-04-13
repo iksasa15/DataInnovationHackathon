@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
 import SurveyLiveSidebar from '../components/SurveyLiveSidebar.vue'
+import HomePageIcon from '../components/HomePageIcon.vue'
 import { validateForm, checkHealth } from '../services/api'
 import type { FormData, HealthStatus, ValidationError, ValidationResult } from '../services/api'
 import { loadLfsMetadataMap } from '../utils/lfsMetadata'
@@ -524,7 +525,9 @@ const currentYear = new Date().getFullYear()
         وضع تجريبي — أضف مفتاح API في <code>backend/.env</code> لتفعيل النموذج اللغوي الكامل.
       </div>
       <div v-else-if="health && health.mode === 'live'" class="banner banner-success">
-        <span class="banner-success-icon" aria-hidden="true">✓</span>
+        <span class="banner-success-icon" aria-hidden="true">
+          <HomePageIcon name="circle-check" :size="16" />
+        </span>
         متصل — يعمل بنموذج لغوي مباشر
       </div>
 
@@ -859,12 +862,18 @@ const currentYear = new Date().getFullYear()
             <span v-if="isSubmitting" class="btn-spinner"></span>
             <span>{{ isSubmitting ? 'جارٍ التحقق…' : 'تحقق نهائي من الاستمارة' }}</span>
           </button>
-          <button type="button" class="btn btn-ghost" @click="generateRandomData">🎲 توليد بيانات مخالفة للقواعد</button>
+          <button type="button" class="btn btn-ghost btn-with-icon" @click="generateRandomData">
+            <HomePageIcon name="dice" :size="18" class="btn-inline-icon" />
+            توليد بيانات مخالفة للقواعد
+          </button>
           <button type="button" class="btn btn-ghost" @click="resetForm">إعادة تعيين</button>
         </div>
 
         <Transition name="fade">
-          <div v-if="showSuccess" class="toast toast-success">✓ البيانات مقبولة — درجة الثقة مرتفعة</div>
+          <div v-if="showSuccess" class="toast toast-success">
+            <HomePageIcon name="circle-check" :size="18" class="toast-success-icon" />
+            البيانات مقبولة — درجة الثقة مرتفعة
+          </div>
         </Transition>
 
         <div class="panel-col">
@@ -1085,7 +1094,15 @@ const currentYear = new Date().getFullYear()
   justify-content: center;
   border-radius: 50%;
   background: #c8e6c9;
-  font-size: 0.75rem;
+  color: #1b5e20;
+}
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-inline-icon {
+  flex-shrink: 0;
 }
 
 .survey-form {
@@ -1297,9 +1314,16 @@ const currentYear = new Date().getFullYear()
   font-weight: 600;
 }
 .toast-success {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   background: #e8f5e9;
   color: #1b5e20;
   border: 1px solid #a5d6a7;
+}
+.toast-success-icon {
+  flex-shrink: 0;
+  color: #2e7d32;
 }
 .fade-enter-active,
 .fade-leave-active {

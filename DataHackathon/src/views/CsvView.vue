@@ -16,6 +16,7 @@ import {
   buildAnalysisExportReportHtml,
   type AnalysisExportInsightsFull,
 } from '../utils/analysisExportReportHtml'
+import HomePageIcon from '../components/HomePageIcon.vue'
 import type { BatchInsightsResponse, BatchResult, LfsBusinessRuleRow, ValidationError } from '../services/api'
 
 interface ValidationResult {
@@ -521,7 +522,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       @dragover.prevent="isDragging = true"
       @drop.prevent="onDrop"
       @dragleave="isDragging = false">
-      <div class="upload-icon">📋</div>
+      <div class="upload-icon" aria-hidden="true">
+        <HomePageIcon name="clipboard-list" :size="44" />
+      </div>
       <p class="upload-title">اسحب ملف CSV هنا</p>
       <p class="upload-sub">أو</p>
       <label class="btn btn-primary upload-btn">
@@ -536,7 +539,9 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
     <template v-else>
       <div class="toolbar">
         <div class="file-info">
-          <span class="file-icon">📄</span>
+          <span class="file-icon" aria-hidden="true">
+            <HomePageIcon name="file-text" :size="18" />
+          </span>
           <span class="file-name">{{ fileName }}</span>
           <span class="file-rows">{{ rows.length }} سجل</span>
         </div>
@@ -545,19 +550,23 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
           <button
             class="btn btn-primary btn-sm"
             :disabled="isProcessing"
-            @click="analyzeAll">
+            @click="analyzeAll"
+          >
             <span v-if="isProcessing" class="btn-spinner"></span>
-            {{ isProcessing ? 'جارٍ التحليل…' : '🔍 تحليل بنموذج لغوي' }}
+            <HomePageIcon v-else name="search" :size="16" class="btn-inline-icon" />
+            {{ isProcessing ? 'جارٍ التحليل…' : 'تحليل بنموذج لغوي' }}
           </button>
           <button class="btn btn-download btn-sm" @click="exportFileOnly" title="تحميل الملف المعدّل فقط">
-            📥 تحميل الملف
+            <HomePageIcon name="download" :size="16" class="btn-inline-icon" />
+            تحميل الملف
           </button>
           <button
             class="btn btn-export btn-sm"
             @click="exportFileAndReport"
             title="تصدير الملف المعدّل مع تقرير HTML بنفس هوية المنصة"
           >
-            💾 حفظ وتصدير + التقرير
+            <HomePageIcon name="save" :size="16" class="btn-inline-icon" />
+            حفظ وتصدير + التقرير
           </button>
         </div>
       </div>
@@ -617,7 +626,10 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
       />
 
       <div v-if="batchResult?.provider" class="provider-notice" :class="batchResult.provider === 'gemini' ? 'provider-ok' : 'provider-local'">
-        <span v-if="batchResult.provider === 'gemini'">✓ تم التحليل بنموذج لغوي</span>
+        <span v-if="batchResult.provider === 'gemini'" class="provider-line">
+          <HomePageIcon name="circle-check" :size="16" class="provider-line-icon" />
+          تم التحليل بنموذج لغوي
+        </span>
         <span v-else-if="batchResult.provider === 'local'">
           التحليل تم محلياً. لتفعيل التحليل بنموذج لغوي: أضف <code>GEMINI_API_KEY</code> في ملف <code>.env</code> داخل مجلد <code>backend</code> ثم أعد تشغيل السيرفر.
         </span>
@@ -917,7 +929,28 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border-color: #0e7490;
   background: rgba(6, 182, 212, 0.04);
 }
-.upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+.upload-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  color: var(--csv-accent, #4137a8);
+  opacity: 0.9;
+}
+.btn-inline-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.provider-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.provider-line-icon {
+  flex-shrink: 0;
+  color: currentColor;
+}
 .upload-title {
   font-size: 1.25rem;
   font-weight: 600;
@@ -981,7 +1014,12 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border-radius: 0.6rem;
 }
 .file-info { display: flex; align-items: center; gap: 0.5rem; }
-.file-icon { font-size: 1.1rem; }
+.file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--csv-accent, #4137a8);
+}
 .file-name { font-weight: 600; color: var(--color-heading); font-size: 0.95rem; }
 .file-rows {
   font-size: 0.78rem;

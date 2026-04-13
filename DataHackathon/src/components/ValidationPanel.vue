@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ValidationResult } from '../services/api'
+import HomePageIcon from './HomePageIcon.vue'
+import type { HomeIconName } from './HomePageIcon.vue'
 
 const props = defineProps<{
   result: ValidationResult | null
@@ -23,14 +25,18 @@ const scoreColor = computed(() => {
   return '#ef4444'
 })
 
-const statusMeta = computed(() => {
+const statusMeta = computed((): {
+  label: string
+  cls: string
+  icon: HomeIconName
+} | null => {
   switch (props.result?.status) {
     case 'valid':
-      return { label: 'بيانات سليمة', cls: 'badge-valid', icon: '✓' }
+      return { label: 'بيانات سليمة', cls: 'badge-valid', icon: 'circle-check' }
     case 'warning':
-      return { label: 'تحذيرات', cls: 'badge-warning', icon: '⚠' }
+      return { label: 'تحذيرات', cls: 'badge-warning', icon: 'alert-triangle' }
     case 'error':
-      return { label: 'أخطاء مكتشفة', cls: 'badge-error', icon: '✕' }
+      return { label: 'أخطاء مكتشفة', cls: 'badge-error', icon: 'x' }
     default:
       return null
   }
@@ -47,7 +53,9 @@ const severityMeta = (s: string) => {
   <aside class="panel">
     <!-- Header -->
     <div class="panel-header">
-      <span class="panel-icon">🛡</span>
+      <span class="panel-icon" aria-hidden="true">
+        <HomePageIcon name="shield" :size="28" />
+      </span>
       <div>
         <h2 class="panel-title">الحارس الدلالي</h2>
         <span :class="['mode-badge', mode === 'live' ? 'mode-live' : 'mode-demo']">
@@ -64,7 +72,9 @@ const severityMeta = (s: string) => {
 
     <!-- Empty -->
     <div v-else-if="!result" class="empty-state">
-      <div class="empty-icon">📋</div>
+      <div class="empty-icon" aria-hidden="true">
+        <HomePageIcon name="clipboard-list" :size="40" />
+      </div>
       <p>ابدأ بملء الاستمارة<br /><small>سيبدأ التحقق تلقائياً</small></p>
     </div>
 
@@ -96,20 +106,23 @@ const severityMeta = (s: string) => {
         </svg>
 
         <span v-if="statusMeta" :class="['status-badge', statusMeta.cls]">
-          {{ statusMeta.icon }} {{ statusMeta.label }}
+          <HomePageIcon :name="statusMeta.icon" :size="14" class="status-badge-icon" />
+          {{ statusMeta.label }}
         </span>
       </div>
 
       <!-- Summary -->
-      <p v-if="result.hybrid_rules_applied" class="hybrid-notice">
-        ⚙️ تم دمج <strong>قواعد أعمال LFS</strong> (Business Rules) مع نتيجة التحليل.
+      <p v-if="result.hybrid_rules_applied" class="hybrid-notice hybrid-notice--inline">
+        <HomePageIcon name="settings" :size="16" class="hybrid-notice-icon" />
+        تم دمج <strong>قواعد أعمال LFS</strong> (Business Rules) مع نتيجة التحليل.
       </p>
       <p class="summary">{{ result.summary }}</p>
 
       <!-- Errors -->
       <div v-if="result.errors.length" class="section">
         <h3 class="section-title">
-          <span>🔍</span> التناقضات المكتشفة
+          <HomePageIcon name="search" :size="16" class="section-title-icon" />
+          التناقضات المكتشفة
           <span class="count-badge">{{ result.errors.length }}</span>
         </h3>
         <ul class="error-list">
@@ -128,12 +141,16 @@ const severityMeta = (s: string) => {
 
       <!-- No errors -->
       <div v-else class="no-errors">
-        <span>✓</span> لا توجد تناقضات مرصودة
+        <HomePageIcon name="circle-check" :size="18" class="no-errors-icon" />
+        لا توجد تناقضات مرصودة
       </div>
 
       <!-- Suggestions -->
       <div v-if="result.suggestions.length" class="section">
-        <h3 class="section-title"><span>💡</span> اقتراحات</h3>
+        <h3 class="section-title">
+          <HomePageIcon name="lightbulb" :size="16" class="section-title-icon" />
+          اقتراحات
+        </h3>
         <ul class="suggestion-list">
           <li v-for="(s, i) in result.suggestions" :key="i">{{ s }}</li>
         </ul>
@@ -166,8 +183,11 @@ const severityMeta = (s: string) => {
   border-bottom: 1px solid var(--color-border);
 }
 .panel-icon {
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 2px;
+  color: #0e7490;
 }
 .panel-title {
   font-size: 1.1rem;
@@ -225,7 +245,11 @@ const severityMeta = (s: string) => {
   opacity: 0.6;
 }
 .empty-icon {
-  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  opacity: 0.45;
 }
 .empty-state p {
   font-size: 0.9rem;
@@ -258,10 +282,16 @@ const severityMeta = (s: string) => {
 
 /* Status badges */
 .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0.3rem 0.8rem;
   border-radius: 9999px;
+}
+.status-badge-icon {
+  flex-shrink: 0;
 }
 .badge-valid   { color: #10b981; background: rgba(16,185,129,0.12); }
 .badge-warning { color: #f59e0b; background: rgba(245,158,11,0.12); }
@@ -276,6 +306,16 @@ const severityMeta = (s: string) => {
   border: 1px solid rgba(14, 116, 144, 0.25);
   color: var(--color-text);
   margin-bottom: 0.5rem;
+}
+.hybrid-notice--inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.hybrid-notice-icon {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: #0e7490;
 }
 
 /* Summary */
@@ -298,6 +338,10 @@ const severityMeta = (s: string) => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+.section-title-icon {
+  flex-shrink: 0;
+  color: #0e7490;
 }
 .count-badge {
   margin-right: auto;
@@ -369,6 +413,10 @@ const severityMeta = (s: string) => {
   padding: 0.75rem;
   background: rgba(16,185,129,0.08);
   border-radius: 0.5rem;
+}
+.no-errors-icon {
+  flex-shrink: 0;
+  color: #10b981;
 }
 
 /* Suggestions */

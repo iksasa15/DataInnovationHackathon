@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * أيقونات خطية بسيطة بألوان الهوية (currentColor) — بديل عن الإيموجي في الصفحة الرئيسية.
+ * أيقونات خطية (currentColor) — بديل عن الإيموجي في الواجهة.
  */
 export type HomeIconName =
   | 'shield'
@@ -20,6 +20,20 @@ export type HomeIconName =
   | 'cpu'
   | 'file-text'
   | 'circle-check'
+  | 'bar-chart'
+  | 'folder'
+  | 'lock'
+  | 'download'
+  | 'save'
+  | 'refresh-cw'
+  | 'lightbulb'
+  | 'bot'
+  | 'x'
+  | 'alert-triangle'
+  | 'dice'
+  | 'link'
+  | 'menu'
+  | 'line-chart'
 
 withDefaults(
   defineProps<{
@@ -148,6 +162,84 @@ withDefaults(
       <g v-else-if="name === 'circle-check'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10" />
         <path d="m9 12 2 2 4-4" />
+      </g>
+      <!-- bar-chart -->
+      <g v-else-if="name === 'bar-chart'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </g>
+      <!-- folder -->
+      <g v-else-if="name === 'folder'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      </g>
+      <!-- lock -->
+      <g v-else-if="name === 'lock'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </g>
+      <!-- download -->
+      <g v-else-if="name === 'download'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </g>
+      <!-- save (floppy) -->
+      <g v-else-if="name === 'save'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+        <polyline points="17 21 17 13 7 13 7 21" />
+        <polyline points="7 3 7 8 15 8" />
+      </g>
+      <!-- refresh-cw -->
+      <g v-else-if="name === 'refresh-cw'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+      </g>
+      <!-- lightbulb -->
+      <g v-else-if="name === 'lightbulb'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18h6M10 22h4M12 3v1m0 0a6 6 0 0 1 6 6c0 1.5-.5 2.8-1.4 3.9-.5.6-.6 1.4-.6 2.1H8c0-.7-.1-1.5-.6-2.1A6 6 0 0 1 12 4z" />
+      </g>
+      <!-- bot -->
+      <g v-else-if="name === 'bot'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="8" width="14" height="12" rx="2" />
+        <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+        <line x1="9" y1="14" x2="9.01" y2="14" />
+        <line x1="15" y1="14" x2="15.01" y2="14" />
+        <path d="M9 18h6" />
+      </g>
+      <!-- x -->
+      <g v-else-if="name === 'x'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </g>
+      <!-- alert-triangle -->
+      <g v-else-if="name === 'alert-triangle'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </g>
+      <!-- dice -->
+      <g v-else-if="name === 'dice'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.25" fill="currentColor" />
+        <circle cx="15.5" cy="15.5" r="1.25" fill="currentColor" />
+        <circle cx="15.5" cy="8.5" r="1.25" fill="currentColor" />
+        <circle cx="8.5" cy="15.5" r="1.25" fill="currentColor" />
+      </g>
+      <!-- link -->
+      <g v-else-if="name === 'link'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" />
+        <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" />
+      </g>
+      <!-- menu -->
+      <g v-else-if="name === 'menu'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </g>
+      <!-- line-chart (مسار/ملخص) -->
+      <g v-else-if="name === 'line-chart'" :stroke-width="strokeWidth" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
       </g>
     </svg>
   </span>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import HomePageIcon from './HomePageIcon.vue'
 import type { ValidationResult, ValidationError } from '../services/api'
 
 const props = defineProps<{
@@ -150,7 +151,8 @@ const scoreColor = computed(() => {
       </section>
 
       <p v-if="result.hybrid_rules_applied" class="live-hybrid-note">
-        ⚙️ دُمجت <strong>قواعد أعمال LFS</strong> مع نتيجة التحليل.
+        <HomePageIcon name="settings" :size="16" class="live-hybrid-note-icon" aria-hidden="true" />
+        دُمجت <strong>قواعد أعمال LFS</strong> مع نتيجة التحليل.
       </p>
     </template>
 
@@ -382,8 +384,16 @@ const scoreColor = computed(() => {
 }
 
 .live-hybrid-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
   font-size: 0.7rem;
   margin: 0.5rem 0 0;
+  color: #64748b;
+}
+.live-hybrid-note-icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
   color: #64748b;
 }
 

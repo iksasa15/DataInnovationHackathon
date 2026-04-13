@@ -13,6 +13,7 @@ import {
 } from 'chart.js'
 import type { ChartData, ChartOptions } from 'chart.js'
 import type { BatchErrorFrequencyItem, BatchInsightsResponse, BatchStats } from '../services/api'
+import HomePageIcon from './HomePageIcon.vue'
 
 interface MostRepeatedFieldGroup {
   field: string
@@ -256,7 +257,9 @@ function isFreqOpen(field: string): boolean {
 
       <!-- ملخص تنفيذي -->
       <div class="summary-callout">
-        <span class="summary-callout-icon" aria-hidden="true">📊</span>
+        <span class="summary-callout-icon" aria-hidden="true">
+          <HomePageIcon name="bar-chart" :size="26" />
+        </span>
         <div class="summary-callout-body">
           <p class="summary-callout-text">{{ insightsReport.report.summary_ar }}</p>
           <div v-if="agg || batchStats" class="summary-metrics">
@@ -535,9 +538,11 @@ function isFreqOpen(field: string): boolean {
 }
 
 .summary-callout-icon {
-  font-size: 1.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  color: var(--ga-primary);
 }
 
 .summary-callout-body {
