@@ -235,28 +235,13 @@ const analyzeButtonIcon = computed((): HomeIconName | null => {
   return 'search'
 })
 
-/** اقتراحات على مستوى الدفعة (فوق الجدول) — بدون قائمة تنبيهات ولا أعداد تحذيرات */
+/** تنبيه فوق الجدول عند خلو الدفعة من أخطاء/تحذيرات (بدون صندوق اقتراحات) */
 const analysisNotice = computed(() => {
   if (!batchResult.value || isProcessing.value) return null
-  const br = batchResult.value
-  const st = br.stats
+  const st = batchResult.value.stats
   if (!st) return null
-
-  const suggestions: string[] = []
-  const sugSeen = new Set<string>()
-  for (const r of br.results) {
-    for (const s of r.suggestions || []) {
-      const t = typeof s === 'string' ? s : String(s)
-      if (!t.trim() || sugSeen.has(t)) continue
-      sugSeen.add(t)
-      suggestions.push(t)
-      if (suggestions.length >= 6) break
-    }
-    if (suggestions.length >= 6) break
-  }
-
   const allClear = st.errors === 0 && st.warnings === 0
-  return { suggestions, allClear }
+  return { allClear }
 })
 
 /** خريطة تفاصيل كل صف (ملخص مشاكل + اقتراحات) لتجنب إعادة الحساب في القالب */
@@ -975,37 +960,7 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
         >
       </div>
 
-      <!-- اقتراحات (فوق الجدول) -->
-      <div
-        v-if="analysisNotice && analysisNotice.suggestions.length > 0"
-        class="analysis-notice-card analysis-notice-card--suggestions-only"
-        role="status"
-      >
-        <div class="analysis-notice-head">
-          <span class="analysis-notice-icon" aria-hidden="true">
-            <HomePageIcon name="lightbulb" :size="22" />
-          </span>
-          <div>
-            <h3 class="analysis-notice-title">اقتراحات</h3>
-            <p v-if="batchResult?.provider" class="analysis-notice-meta">
-              <span v-if="batchResult.provider === 'gemini'" class="tag-gemini">نموذج لغوي</span>
-              <span v-else-if="batchResult.provider === 'rules'" class="tag-rules">قواعد فقط</span>
-              <span v-else-if="batchResult.provider === 'local'" class="tag-local">تحقق محلي + قواعد</span>
-            </p>
-          </div>
-        </div>
-        <ul class="analysis-notice-suggestions">
-          <li
-            v-for="(sg, sgi) in analysisNotice.suggestions"
-            :key="'sg' + sgi"
-            class="suggestion-li"
-          >
-            {{ sg }}
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
+      <div v-if="analysisNotice && analysisNotice.allClear" class="analysis-notice-ok" role="status">
         <span class="ok-icon" aria-hidden="true">
           <HomePageIcon name="circle-check" :size="22" />
         </span>
@@ -1464,106 +1419,6 @@ function getRowDetails(row: RowData): { isOk: boolean; summary?: string; problem
   border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 0.5rem;
 }
-
-.analysis-notice-card {
-  margin-bottom: 1rem;
-  padding: 1rem 1.1rem;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.06));
-  border: 1px solid rgba(245, 158, 11, 0.45);
-  border-radius: 0.65rem;
-}
-.analysis-notice-card--suggestions-only {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.07), rgba(139, 92, 246, 0.05));
-  border-color: rgba(99, 102, 241, 0.32);
-}
-.analysis-notice-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  margin-bottom: 0.75rem;
-}
-.analysis-notice-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #6366f1;
-}
-.analysis-notice-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-}
-.analysis-notice-meta {
-  margin: 0.2rem 0 0;
-  font-size: 0.8rem;
-  color: var(--color-text);
-  opacity: 0.88;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-}
-.tag-gemini, .tag-local, .tag-rules {
-  font-size: 0.72rem;
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  font-weight: 600;
-}
-.tag-gemini { background: rgba(16, 185, 129, 0.2); color: #047857; }
-.tag-rules { background: rgba(59, 130, 246, 0.18); color: #1d4ed8; }
-.tag-local { background: rgba(107, 114, 128, 0.2); color: #374151; }
-
-.analysis-notice-list {
-  margin: 0;
-  padding-right: 1.1rem;
-  list-style: disc;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  color: var(--color-text);
-}
-.analysis-notice-li {
-  margin-bottom: 0.5rem;
-}
-.notice-field {
-  display: inline-block;
-  font-weight: 600;
-  color: var(--color-heading);
-  margin-left: 0.35rem;
-}
-.notice-msg { display: inline; }
-.notice-rule {
-  display: inline-block;
-  margin-right: 0.35rem;
-  font-size: 0.72rem;
-  padding: 0.08rem 0.4rem;
-  border-radius: 0.25rem;
-  background: rgba(91, 33, 182, 0.12);
-  color: #5b21b6;
-  vertical-align: middle;
-}
-.notice-en {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.78rem;
-  opacity: 0.85;
-  color: var(--color-text);
-}
-.analysis-notice-fallback {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.9;
-}
-.analysis-notice-suggestions {
-  margin: 0.35rem 0 0;
-  padding-right: 1rem;
-  list-style: none;
-  font-size: 0.82rem;
-  color: #5b21b6;
-}
-.suggestion-li { margin-bottom: 0.35rem; }
 
 .analysis-notice-ok {
   display: flex;
