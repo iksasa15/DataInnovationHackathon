@@ -420,6 +420,27 @@ function isFreqOpen(field: string): boolean {
         </div>
       </div>
 
+      <div
+        v-if="insightsReport.report.recommendations_ar?.length"
+        class="batch-insights-practical"
+        role="region"
+        aria-label="اقتراحات عملية"
+      >
+        <h4 class="batch-insights-practical-title">اقتراحات عملية</h4>
+        <div class="batch-insights-rec-grid">
+          <div
+            v-for="(rec, ri) in insightsReport.report.recommendations_ar"
+            :key="'rec' + ri"
+            class="batch-insights-rec-card"
+          >
+            <span class="batch-insights-rec-check" aria-hidden="true">
+              <HomePageIcon name="circle-check" :size="20" />
+            </span>
+            <p class="batch-insights-rec-text">{{ rec }}</p>
+          </div>
+        </div>
+      </div>
+
       <div v-if="insightsReport.report.priority_fields_ar?.length" class="batch-insights-priority">
         <span class="batch-insights-priority-label">أولوية المراجعة</span>
         <span
@@ -729,6 +750,56 @@ function isFreqOpen(field: string): boolean {
   line-height: 1.55;
   color: var(--color-text);
   opacity: 0.92;
+}
+
+.batch-insights-practical {
+  margin-bottom: 1.15rem;
+}
+
+.batch-insights-practical-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-heading);
+  letter-spacing: 0.02em;
+}
+
+.batch-insights-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
+  gap: 0.75rem;
+}
+
+.batch-insights-rec-card {
+  direction: rtl;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  min-height: 4.5rem;
+  background: linear-gradient(160deg, #e8eef6 0%, #eef2f9 55%, #f4f7fb 100%);
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  border-radius: 0.6rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.batch-insights-rec-check {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.1rem;
+  color: #53cd3f;
+}
+
+.batch-insights-rec-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #334155;
 }
 
 .batch-insights-priority {
