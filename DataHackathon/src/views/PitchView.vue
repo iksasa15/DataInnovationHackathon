@@ -326,9 +326,9 @@ function saveAsPdf() {
   align-items: center;
   align-self: center;
   gap: 0.45rem;
-  padding: 0.2rem 0.65rem 0.2rem 0.2rem;
+  padding: 0.28rem 0.75rem 0.28rem 0.28rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-weight: 700;
   background: var(--ga-primary-soft);
   color: var(--ga-primary-dark);
@@ -374,7 +374,7 @@ function saveAsPdf() {
 }
 
 .cover-goals-title {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--ga-primary, #4137a8);
   margin: 0 0 0.85rem;
@@ -386,11 +386,30 @@ function saveAsPdf() {
 }
 
 .pitch-tagline {
-  font-size: 1rem;
-  line-height: 1.8;
-  max-width: 40rem;
+  font-size: 1.125rem;
+  line-height: 1.85;
+  max-width: 44rem;
   margin: 0 auto;
   color: #334155;
+}
+
+@media (min-width: 640px) {
+  .pitch-tagline {
+    font-size: 1.2rem;
+    line-height: 1.82;
+  }
+}
+
+@media (min-width: 900px) {
+  .pitch-tagline {
+    font-size: 1.28rem;
+  }
+}
+
+.goals-grid--cover .goal-card {
+  font-size: 0.95rem;
+  line-height: 1.62;
+  padding: 0.8rem 0.95rem;
 }
 
 .slide {
