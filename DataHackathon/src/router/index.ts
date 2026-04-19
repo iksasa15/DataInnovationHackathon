@@ -37,6 +37,12 @@ const router = createRouter({
       name: 'pitch',
       component: () => import('../views/PitchView.vue'),
     },
+    {
+      path: '/pitch/present',
+      name: 'pitch-present',
+      meta: { presentation: true },
+      component: () => import('../views/PitchView.vue'),
+    },
     { path: '/about', redirect: '/' },
     { path: '/tests', redirect: '/' },
     {

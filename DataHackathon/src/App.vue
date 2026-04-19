@@ -14,19 +14,21 @@ watch(
   },
 )
 
+const hideChrome = computed(() => route.meta.presentation === true)
+
 const pageTitle = computed(() => {
   const n = route.name
   if (n === 'home') return 'لوحة عين'
   if (n === 'survey') return 'الحارس الدلالي — الاستبيان'
   if (n === 'analysis') return 'تحليل الملف الجدولي'
   if (n === 'privacy') return 'سياسة الخصوصية'
-  if (n === 'pitch') return 'عن عين'
+  if (n === 'pitch' || n === 'pitch-present') return 'عن عين'
   return 'عين'
 })
 
 const navItems: { to: string; name: string; label: string }[] = [
   { to: '/', name: 'home', label: 'الرئيسية' },
-  { to: '/pitch', name: 'pitch', label: 'عن عين' },
+  { to: '/pitch/present', name: 'pitch-present', label: 'عن عين' },
   { to: '/survey', name: 'survey', label: 'الحارس الدلالي' },
   { to: '/analysis', name: 'analysis', label: 'تحليل الملف' },
   { to: '/privacy', name: 'privacy', label: 'الخصوصية' },
@@ -34,15 +36,21 @@ const navItems: { to: string; name: string; label: string }[] = [
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--present': hideChrome }">
     <div
+      v-if="!hideChrome"
       class="sidebar-backdrop"
       :class="{ 'sidebar-backdrop--on': sidebarOpen }"
       aria-hidden="true"
       @click="sidebarOpen = false"
     />
 
-    <aside class="sidebar" :class="{ 'sidebar--open': sidebarOpen }" aria-label="القائمة الرئيسية">
+    <aside
+      v-if="!hideChrome"
+      class="sidebar"
+      :class="{ 'sidebar--open': sidebarOpen }"
+      aria-label="القائمة الرئيسية"
+    >
       <div class="sidebar-brand">
         <div class="sidebar-logo">
           <img :src="logoSrc" alt="عين" class="sidebar-logo-img" width="40" height="40" decoding="async" />
@@ -59,7 +67,11 @@ const navItems: { to: string; name: string; label: string }[] = [
           :key="item.to"
           :to="item.to"
           class="sidebar-link"
-          :class="{ 'sidebar-link--active': route.name === item.name }"
+          :class="{
+            'sidebar-link--active':
+              route.name === item.name ||
+              (item.name === 'pitch-present' && route.name === 'pitch'),
+          }"
         >
           {{ item.label }}
         </RouterLink>
@@ -67,7 +79,7 @@ const navItems: { to: string; name: string; label: string }[] = [
     </aside>
 
     <div class="main-column">
-      <header class="topbar">
+      <header v-if="!hideChrome" class="topbar">
         <button
           type="button"
           class="menu-toggle"
@@ -309,5 +321,34 @@ const navItems: { to: string; name: string; label: string }[] = [
 .app-main {
   flex: 1;
   min-height: 0;
+}
+
+.app-shell--present .main-column {
+  min-height: 100vh;
+}
+
+.app-shell--present .app-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+</style>
+
+<style>
+@media print {
+  .app-shell .sidebar,
+  .app-shell .topbar,
+  .app-shell .sidebar-backdrop {
+    display: none !important;
+  }
+
+  .app-shell .main-column {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .app-shell .menu-toggle {
+    display: none !important;
+  }
 }
 </style>

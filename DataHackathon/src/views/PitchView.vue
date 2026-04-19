@@ -1,16 +1,102 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import PitchSvgIcon from '../components/PitchSvgIcon.vue'
+import HomePageIcon from '../components/HomePageIcon.vue'
 import { LOGO_AIN_SRC } from '../constants/branding'
 
 const TAGLINE =
   'منصة ذكية ترفع جودة البيانات من المصدر عبر كشف التناقضات المنطقية والدلالية باستخدام الذكاء الاصطناعي، سواء في الاستمارة الحية أو عند تحليل الملفات الجدولية. ويربط الحل بين نماذج اللغة الكبيرة وقواعد الأعمال ومسار جمع البيانات، لتحويل التحقق من مرحلة لاحقة إلى جزء مباشر من دورة العمل، بما يعزز الدقة ويقلل الجهد في المراجعة اللاحقة.'
+
+const route = useRoute()
+const router = useRouter()
+
+const isPresentation = computed(() => route.name === 'pitch-present')
+
+const TOTAL_SLIDES = 5
+const slideIndex = ref(0)
+
+function goPrev() {
+  slideIndex.value = Math.max(0, slideIndex.value - 1)
+}
+
+function goNext() {
+  slideIndex.value = Math.min(TOTAL_SLIDES - 1, slideIndex.value + 1)
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (!isPresentation.value) return
+  if (e.key === 'ArrowLeft' || e.key === 'PageDown' || e.key === ' ') {
+    e.preventDefault()
+    goNext()
+  } else if (e.key === 'ArrowRight' || e.key === 'PageUp') {
+    e.preventDefault()
+    goPrev()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    router.push('/')
+  }
+}
+
+watch(
+  () => route.name,
+  () => {
+    slideIndex.value = 0
+  },
+)
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
+/** حفظ PDF عبر نافذة الطباعة (اختر «حفظ كـ PDF» في المتصفح) */
+function saveAsPdf() {
+  window.print()
+}
 </script>
 
 <template>
-  <div class="pitch-page">
+  <div class="pitch-page" :class="{ 'pitch-page--present': isPresentation }">
+    <nav v-if="!isPresentation" class="pitch-page-nav" aria-label="أنماط العرض">
+      <div class="pitch-page-nav-inner">
+        <button
+          type="button"
+          class="pitch-nav-download"
+          title="حفظ كملف PDF عبر نافذة الطباعة"
+          @click="saveAsPdf"
+        >
+          <HomePageIcon name="download" :size="16" class="pitch-nav-download-icon" />
+          تحميل
+        </button>
+        <RouterLink to="/pitch/present" class="pitch-nav-link">عرض كشرائح</RouterLink>
+      </div>
+    </nav>
+
+    <div class="pitch-present-dock" v-if="isPresentation" role="toolbar" aria-label="التنقل بين الشرائح">
+      <button type="button" class="pitch-dock-btn" :disabled="slideIndex <= 0" @click="goPrev">
+        السابق →
+      </button>
+      <span class="pitch-dock-counter" aria-live="polite">{{ slideIndex + 1 }} / {{ TOTAL_SLIDES }}</span>
+      <button type="button" class="pitch-dock-btn" :disabled="slideIndex >= TOTAL_SLIDES - 1" @click="goNext">
+        ← التالي
+      </button>
+      <button
+        type="button"
+        class="pitch-dock-btn pitch-dock-btn--download"
+        title="حفظ كملف PDF عبر نافذة الطباعة"
+        @click="saveAsPdf"
+      >
+        <HomePageIcon name="download" :size="16" class="pitch-dock-btn-icon" />
+        تحميل
+      </button>
+      <RouterLink to="/pitch" class="pitch-dock-exit">نسخة مستند</RouterLink>
+      <RouterLink to="/" class="pitch-dock-exit pitch-dock-exit--muted">الرئيسية</RouterLink>
+    </div>
     <!-- الشريحة ١ — تعريف وجملة -->
-    <section class="slide slide--cover" aria-labelledby="s1">
+    <section
+      class="slide slide--cover"
+      aria-labelledby="s1"
+      v-show="!isPresentation || slideIndex === 0"
+    >
       <div class="slide-body slide-body--cover">
         <span class="pitch-hero-badge">
           <span class="pitch-hero-badge-chip" aria-hidden="true">
@@ -49,7 +135,11 @@ const TAGLINE =
     </section>
 
     <!-- الشريحة 2 — المشكلة + أثرها (نفس الشريحة) -->
-    <section class="slide slide--problem" aria-labelledby="s2">
+    <section
+      class="slide slide--problem"
+      aria-labelledby="s2"
+      v-show="!isPresentation || slideIndex === 1"
+    >
       <div class="slide-body">
         <h2 id="s2">المشكلة</h2>
         <p class="slide-lead slide-lead--problem">
@@ -89,7 +179,11 @@ const TAGLINE =
     </section>
 
     <!-- الشريحة 3 -->
-    <section class="slide slide--flow" aria-labelledby="s3">
+    <section
+      class="slide slide--flow"
+      aria-labelledby="s3"
+      v-show="!isPresentation || slideIndex === 2"
+    >
       <div class="slide-body">
         <h2 id="s3">كيف تعمل المنصة</h2>
         <p class="slide-lead">
@@ -126,7 +220,11 @@ const TAGLINE =
     </section>
 
     <!-- الشريحة 4 -->
-    <section class="slide slide--usage" aria-labelledby="s4">
+    <section
+      class="slide slide--usage"
+      aria-labelledby="s4"
+      v-show="!isPresentation || slideIndex === 3"
+    >
       <div class="slide-body">
         <h2 id="s4">المنصة في الاستخدام</h2>
         <p class="slide-lead">
@@ -159,7 +257,11 @@ const TAGLINE =
     </section>
 
     <!-- الشريحة 5 — ما يميز عين، الخلاصة -->
-    <section class="slide slide--outro" aria-labelledby="s5">
+    <section
+      class="slide slide--outro"
+      aria-labelledby="s5"
+      v-show="!isPresentation || slideIndex === 4"
+    >
       <div class="slide-body">
         <h2 id="s5">ما الذي يميز عين؟</h2>
         <p class="slide-lead slide-lead--outro">
@@ -638,5 +740,182 @@ const TAGLINE =
 
 .pitch-btn--outline:hover {
   background: var(--ga-cyan-soft);
+}
+
+.pitch-page-nav {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 1.25rem 0.35rem;
+}
+
+.pitch-page-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pitch-nav-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(65, 55, 168, 0.28);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ga-primary-dark, #322a82);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pitch-nav-download:hover {
+  background: var(--ga-primary-soft, #ebe8f7);
+}
+
+.pitch-nav-download-icon {
+  display: flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.pitch-nav-link {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ga-primary, #4137a8);
+  text-decoration: none;
+}
+
+.pitch-nav-link:hover {
+  text-decoration: underline;
+}
+
+.pitch-page--present {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 0.85rem 1rem calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.pitch-page--present .slide {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pitch-present-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  padding: 0.65rem 1rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid rgba(65, 55, 168, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.pitch-dock-btn {
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(65, 55, 168, 0.25);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ga-primary-dark, #322a82);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.pitch-dock-btn:hover:not(:disabled) {
+  background: var(--ga-primary-soft, #ebe8f7);
+}
+
+.pitch-dock-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pitch-dock-counter {
+  font-weight: 800;
+  color: var(--ga-primary-dark, #322a82);
+  min-width: 4rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.pitch-dock-exit {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+}
+
+.pitch-dock-exit:hover {
+  color: var(--ga-primary, #4137a8);
+  text-decoration: underline;
+}
+
+.pitch-dock-exit--muted {
+  opacity: 0.9;
+}
+
+.pitch-dock-btn--download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pitch-dock-btn-icon {
+  display: flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+</style>
+
+<style>
+/* طباعة / حفظ PDF: إظهار كل الشرائح وإخفاء شريط التحكم */
+@media print {
+  .pitch-page .slide {
+    display: flex !important;
+    break-after: page;
+    page-break-after: always;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .pitch-page .slide:last-of-type {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .pitch-present-dock,
+  .pitch-page-nav {
+    display: none !important;
+  }
+
+  .pitch-page {
+    padding: 0.5rem !important;
+    background: #fff !important;
+  }
+
+  .pitch-page--present {
+    padding-bottom: 0.5rem !important;
+  }
 }
 </style>
